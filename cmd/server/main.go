@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/gabkaclassic/metrics/config"
+	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/pkg/httpserver"
 )
 
