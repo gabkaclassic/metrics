@@ -1,10 +1,16 @@
 package main
 
 import (
+	"github.com/gabkaclassic/metrics/config"
 	"github.com/gabkaclassic/metrics/pkg/httpserver"
 )
 
 func main() {
-	server := httpserver.New()
+
+	cfg := config.ParseConfig()
+
+	server := httpserver.New(
+		httpserver.Address(cfg.Server.Address),
+	)
 	server.Run()
 }
