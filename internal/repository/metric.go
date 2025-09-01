@@ -10,6 +10,7 @@ import (
 type MetricsRepository interface {
 	Add(metric models.Metrics) error
 	Reset(metric models.Metrics) error
+	Get(metricID string) (*models.Metrics, error)
 }
 
 type metricsRepository struct {
@@ -27,6 +28,17 @@ func NewMetricsRepository(storage *storage.MemStorage) MetricsRepository {
 	return &metricsRepository{
 		storage: storage,
 	}
+}
+
+func (repository *metricsRepository) Get(metricID string) (*models.Metrics, error) {
+
+	metric, exists := repository.storage.Metrics[metricID]
+
+	if !exists {
+		return nil, nil
+	}
+
+	return &metric, nil
 }
 
 func (repository *metricsRepository) updateMetric(metric models.Metrics, updateMetricFunction func(metric models.Metrics) error) error {

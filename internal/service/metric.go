@@ -25,7 +25,20 @@ func NewMetricsService(repository repository.MetricsRepository) *MetricsService 
 	}
 }
 
-func (service *MetricsService) SaveMetric(id string, metricType string, rawValue string) *api_error.ApiError {
+func (service *MetricsService) Get(metricID string) (*models.Metrics, *api_error.ApiError) {
+
+	metric, err := service.repository.Get(metricID)
+
+	if err != nil {
+		return nil, api_error.Internal("get metric error", err)
+	} else if metric == nil {
+		return nil, api_error.NotFound(fmt.Sprintf("metric %s not found", metricID))
+	}
+
+	return metric, nil
+}
+
+func (service *MetricsService) Save(id string, metricType string, rawValue string) *api_error.ApiError {
 
 	switch metricType {
 	case models.Counter:

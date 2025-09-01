@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -23,7 +24,7 @@ func NewMetricsHandler(service *service.MetricsService) *MetricsHandler {
 	}
 }
 
-func (handler *MetricsHandler) SaveMetric(w http.ResponseWriter, r *http.Request) {
+func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method != http.MethodPost {
 		api_error.RespondError(w, api_error.NotAllowed())
@@ -34,9 +35,27 @@ func (handler *MetricsHandler) SaveMetric(w http.ResponseWriter, r *http.Request
 	metricType := r.PathValue("type")
 	metricValue := r.PathValue("value")
 
-	err := handler.service.SaveMetric(metricID, metricType, metricValue)
+	err := handler.service.Save(metricID, metricType, metricValue)
 
 	if err != nil {
 		api_error.RespondError(w, err)
 	}
+}
+
+func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
+
+	if r.Method != http.MethodGet {
+		api_error.RespondError(w, api_error.NotAllowed())
+		return
+	}
+
+	metricID := r.PathValue("id")
+
+	metric, err := handler.service.Get(metricID)
+
+	if err != nil {
+		api_error.RespondError(w, err)
+	}
+
+	json.NewEncoder(w).Encode(metric)
 }

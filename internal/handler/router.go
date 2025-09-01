@@ -16,6 +16,10 @@ func SetupRouter(config *RouterConfiguration) {
 	// Metrics
 	config.Mux.Handle(
 		"/update/{type}/{id}/{value}",
-		middleware.TextPlainContentType(http.HandlerFunc(config.MetricsHandler.SaveMetric)),
+		middleware.TextPlainContentType(http.HandlerFunc(config.MetricsHandler.Save)),
+	)
+	config.Mux.Handle(
+		"/get/{id}",
+		middleware.JSONContentType(http.HandlerFunc(config.MetricsHandler.Get)),
 	)
 }
