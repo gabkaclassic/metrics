@@ -12,7 +12,7 @@ func Address(address string) Option {
 	}
 }
 
-func Handler(handler http.Handler) Option {
+func Handler(handler *http.ServeMux) Option {
 	return func(server *Server) {
 		server.handler = handler
 	}

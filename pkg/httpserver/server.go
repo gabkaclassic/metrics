@@ -10,14 +10,14 @@ const (
 
 type Server struct {
 	address string
-	handler http.Handler
+	handler *http.ServeMux
 }
 
 func New(options ...Option) *Server {
 
 	server := &Server{
 		address: defaultAddress,
-		handler: http.DefaultServeMux,
+		handler: http.NewServeMux(),
 	}
 
 	for _, option := range options {
@@ -25,6 +25,10 @@ func New(options ...Option) *Server {
 	}
 
 	return server
+}
+
+func (server *Server) GetHandler() *http.ServeMux {
+	return server.handler
 }
 
 func (server *Server) Run() {
