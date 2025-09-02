@@ -39,6 +39,7 @@ func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		api_error.RespondError(w, err)
+		return
 	}
 }
 
@@ -55,6 +56,7 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		api_error.RespondError(w, err)
+		return
 	}
 
 	json.NewEncoder(w).Encode(metric)
