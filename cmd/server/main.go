@@ -11,10 +11,10 @@ import (
 
 func main() {
 
-	cfg := config.ParseConfig()
+	cfg := config.ParseServerConfig()
 
 	server := httpserver.New(
-		httpserver.Address(cfg.Server.Address),
+		httpserver.Address(cfg.Address),
 	)
 
 	setupRouter(server)
