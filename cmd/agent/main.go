@@ -26,8 +26,12 @@ func main() {
 		client, &runtime.MemStats{},
 	)
 
-	pollTicker := time.NewTicker(cfg.PollInterval)
-	reportTicker := time.NewTicker(cfg.ReportInterval)
+	startAgent(cfg.PollInterval, cfg.ReportInterval, agent)
+}
+
+func startAgent(pollInterval time.Duration, reportInterval time.Duration, agent *agent.MetricsAgent) {
+	pollTicker := time.NewTicker(pollInterval)
+	reportTicker := time.NewTicker(reportInterval)
 	defer pollTicker.Stop()
 	defer reportTicker.Stop()
 
