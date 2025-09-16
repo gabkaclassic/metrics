@@ -56,6 +56,7 @@ func Logger(handler http.Handler) http.Handler {
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 		slog.Info("Incoming request",
+			slog.String("id", requestID),
 			slog.String("method", r.Method),
 			slog.String("url", r.URL.String()),
 			slog.Any("headers", r.Header),
@@ -69,6 +70,7 @@ func Logger(handler http.Handler) http.Handler {
 
 		duration := time.Since(start)
 		slog.Info("Request processed",
+			slog.String("id", requestID),
 			slog.Duration("duration", duration),
 		)
 	})
