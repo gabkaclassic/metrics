@@ -18,7 +18,7 @@ func ParseConfig() *Config {
 	var cfg Config
 
 	// Server
-	serverAddress := flag.String("address", "0.0.0.0:8000", "HTTP server address")
+	serverAddress := flag.String("address", "0.0.0.0:8080", "HTTP server address")
 
 	flag.Parse()
 
