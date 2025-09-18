@@ -24,7 +24,7 @@ type (
 func ParseServerConfig() *Server {
 	var cfg Server
 
-	address := flag.String("address", "0.0.0.0:8000", "HTTP server address")
+	address := flag.String("address", "0.0.0.0:8080", "HTTP server address")
 
 	flag.Parse()
 
@@ -38,7 +38,7 @@ func ParseAgentConfig() *Agent {
 
 	pollInterval := flag.Duration("poll-interval", 2*time.Second, "Metrics polling interval")
 	reportInterval := flag.Duration("report-interval", 10*time.Second, "Metrics polling interval")
-	serverAddress := flag.String("report-url", "http://0.0.0.0:8000", "Server HTTP base URL")
+	serverAddress := flag.String("report-url", "http://0.0.0.0:8080", "Server HTTP base URL")
 	retries := flag.Int("report-retries", 3, "Max update metrics retries")
 	timeout := flag.Duration("report-timeout", 3*time.Second, "Metrics updating interval")
 
