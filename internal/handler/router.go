@@ -1,32 +1,42 @@
 package handler
 
 import (
+	"github.com/go-chi/chi/v5"
 	"net/http"
 
 	"github.com/gabkaclassic/metrics/internal/middleware"
 )
 
 type RouterConfiguration struct {
-	Mux            *http.ServeMux
 	MetricsHandler *MetricsHandler
 }
 
-func SetupRouter(config *RouterConfiguration) {
+func SetupRouter(config *RouterConfiguration) http.Handler {
 
+	router := chi.NewRouter()
+
+	router.Use(
+		middleware.Logger,
+	)
+
+	setupMetricsRouter(router, config.MetricsHandler)
+
+	return router
+}
+
+func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 	// Metrics
-	config.Mux.Handle(
+	router.Handle(
 		"/update/{type}/{id}/{value}",
 		middleware.Wrap(
-			http.HandlerFunc(config.MetricsHandler.Save),
-			middleware.Logger,
+			http.HandlerFunc(handler.Save),
 			middleware.TextPlainContentType,
 		),
 	)
-	config.Mux.Handle(
+	router.Handle(
 		"/get/{id}",
 		middleware.Wrap(
-			http.HandlerFunc(config.MetricsHandler.Get),
-			middleware.Logger,
+			http.HandlerFunc(handler.Get),
 			middleware.JSONContentType,
 		),
 	)

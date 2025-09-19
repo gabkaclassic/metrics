@@ -1,6 +1,8 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/internal/handler"
 	"github.com/gabkaclassic/metrics/internal/repository"
@@ -16,16 +18,15 @@ func main() {
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
+	router := setupRouter()
 	server := httpserver.New(
 		httpserver.Address(cfg.Address),
+		httpserver.Handler(&router),
 	)
-
-	setupRouter(server)
-
 	server.Run()
 }
 
-func setupRouter(server *httpserver.Server) {
+func setupRouter() http.Handler {
 
 	storage := storage.NewMemStorage()
 
@@ -34,8 +35,7 @@ func setupRouter(server *httpserver.Server) {
 	metricsService := service.NewMetricsService(metricsRepository)
 	metricsHandler := handler.NewMetricsHandler(metricsService)
 
-	handler.SetupRouter(&handler.RouterConfiguration{
-		Mux:            server.GetHandler(),
+	return handler.SetupRouter(&handler.RouterConfiguration{
 		MetricsHandler: metricsHandler,
 	})
 }

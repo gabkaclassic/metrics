@@ -12,34 +12,44 @@ func TestNew(t *testing.T) {
 		name     string
 		options  []Option
 		wantAddr string
-		wantMux  *http.ServeMux
+		wantType interface{}
 	}{
 		{
 			name:     "default options",
 			options:  nil,
 			wantAddr: defaultAddress,
-			wantMux:  http.NewServeMux(),
+			wantType: &http.ServeMux{},
 		},
 		{
 			name:     "custom address",
 			options:  []Option{Address("127.0.0.1:9000")},
 			wantAddr: "127.0.0.1:9000",
-			wantMux:  http.NewServeMux(),
+			wantType: &http.ServeMux{},
 		},
 		{
-			name:     "custom handler",
-			options:  []Option{Handler(http.NewServeMux())},
+			name: "custom handler",
+			options: []Option{
+				Handler(func() *http.Handler {
+					h := http.NewServeMux()
+					var hh http.Handler = h
+					return &hh
+				}()),
+			},
 			wantAddr: defaultAddress,
-			wantMux:  http.NewServeMux(),
+			wantType: &http.ServeMux{},
 		},
 		{
 			name: "custom address and handler",
 			options: []Option{
 				Address("127.0.0.1:9001"),
-				Handler(http.NewServeMux()),
+				Handler(func() *http.Handler {
+					h := http.NewServeMux()
+					var hh http.Handler = h
+					return &hh
+				}()),
 			},
 			wantAddr: "127.0.0.1:9001",
-			wantMux:  http.NewServeMux(),
+			wantType: &http.ServeMux{},
 		},
 	}
 
@@ -48,7 +58,11 @@ func TestNew(t *testing.T) {
 			server := New(tt.options...)
 
 			assert.Equal(t, tt.wantAddr, server.address)
-			assert.IsType(t, tt.wantMux, server.GetHandler())
+			if server.handler != nil {
+				assert.IsType(t, tt.wantType, *server.handler)
+			} else {
+				assert.Nil(t, server.handler)
+			}
 		})
 	}
 }
