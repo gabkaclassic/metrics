@@ -20,13 +20,11 @@ const (
 	HTML ContentType = "text/html; charset=utf-8"
 )
 
-func Wrap(handler http.Handler, middlewares ...middleware) http.Handler {
-	wrapped := handler
-	for _, handler := range middlewares {
-		wrapped = handler(wrapped)
+func Wrap(h http.Handler, middlewares ...middleware) http.HandlerFunc {
+	for _, m := range middlewares {
+		h = m(h)
 	}
-
-	return wrapped
+	return h.ServeHTTP
 }
 
 func WithContentType(ct ContentType) middleware {
