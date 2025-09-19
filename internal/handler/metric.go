@@ -10,10 +10,10 @@ import (
 )
 
 type MetricsHandler struct {
-	service *service.MetricsService
+	service service.MetricsService
 }
 
-func NewMetricsHandler(service *service.MetricsService) *MetricsHandler {
+func NewMetricsHandler(service service.MetricsService) *MetricsHandler {
 
 	if service == nil {
 		panic(errors.New("create new metrics handler failed: service is nil"))
