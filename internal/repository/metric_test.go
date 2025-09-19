@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/storage"
+	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -208,10 +209,82 @@ func TestMetricsRepository_Reset(t *testing.T) {
 	}
 }
 
-func intPtr(value int64) *int64 {
-	return &value
+func TestMetricsRepository_GetAll(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialMetrics map[string]models.Metrics
+		expected       map[string]any
+	}{
+		{
+			name:           "empty storage",
+			initialMetrics: map[string]models.Metrics{},
+			expected:       map[string]any{},
+		},
+		{
+			name: "single counter metric",
+			initialMetrics: map[string]models.Metrics{
+				"c1": {
+					ID:    "c1",
+					MType: string(metric.CounterType),
+					Delta: intPtr(5),
+				},
+			},
+			expected: map[string]any{
+				"c1": int64(5),
+			},
+		},
+		{
+			name: "single gauge metric",
+			initialMetrics: map[string]models.Metrics{
+				"g1": {
+					ID:    "g1",
+					MType: string(metric.GaugeType),
+					Value: floatPtr(42.5),
+				},
+			},
+			expected: map[string]any{
+				"g1": float64(42.5),
+			},
+		},
+		{
+			name: "mixed metrics",
+			initialMetrics: map[string]models.Metrics{
+				"c1": {
+					ID:    "c1",
+					MType: string(metric.CounterType),
+					Delta: intPtr(3),
+				},
+				"g1": {
+					ID:    "g1",
+					MType: string(metric.GaugeType),
+					Value: floatPtr(99.9),
+				},
+			},
+			expected: map[string]any{
+				"c1": int64(3),
+				"g1": float64(99.9),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			st := storage.NewMemStorage()
+			st.Metrics = tt.initialMetrics
+			repo := &metricsRepository{storage: st}
+
+			result := repo.GetAll()
+
+			assert.NotNil(t, result)
+			assert.Equal(t, tt.expected, *result)
+		})
+	}
 }
 
-func floatPtr(value float64) *float64 {
+func floatPtr(v float64) *float64 {
+	return &v
+}
+
+func intPtr(value int64) *int64 {
 	return &value
 }
