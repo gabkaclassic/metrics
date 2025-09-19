@@ -1,10 +1,9 @@
 package service
 
 import (
+	"errors"
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/repository"
-	// "github.com/gabkaclassic/metrics/internal/storage"
-	"errors"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
@@ -65,7 +64,6 @@ func TestNewMetricsService(t *testing.T) {
 			} else {
 				service := NewMetricsService(tt.repository)
 				assert.NotNil(t, service)
-				assert.Equal(t, tt.repository, service.repository)
 			}
 		})
 	}

@@ -10,22 +10,27 @@ import (
 	"github.com/gabkaclassic/metrics/internal/repository"
 )
 
-type MetricsService struct {
+type MetricsService interface {
+	Get(metricID string) (*models.Metrics, *api_error.ApiError)
+	Save(id string, metricType string, rawValue string) *api_error.ApiError
+}
+
+type metricsService struct {
 	repository repository.MetricsRepository
 }
 
-func NewMetricsService(repository repository.MetricsRepository) *MetricsService {
+func NewMetricsService(repository repository.MetricsRepository) MetricsService {
 
 	if repository == nil {
 		panic(errors.New("create new metrics service failed: repository is nil"))
 	}
 
-	return &MetricsService{
+	return &metricsService{
 		repository: repository,
 	}
 }
 
-func (service *MetricsService) Get(metricID string) (*models.Metrics, *api_error.ApiError) {
+func (service *metricsService) Get(metricID string) (*models.Metrics, *api_error.ApiError) {
 
 	metric, err := service.repository.Get(metricID)
 
@@ -38,7 +43,7 @@ func (service *MetricsService) Get(metricID string) (*models.Metrics, *api_error
 	return metric, nil
 }
 
-func (service *MetricsService) Save(id string, metricType string, rawValue string) *api_error.ApiError {
+func (service *metricsService) Save(id string, metricType string, rawValue string) *api_error.ApiError {
 
 	switch metricType {
 	case models.Counter:

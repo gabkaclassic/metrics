@@ -14,8 +14,6 @@ type MetricsRepository interface {
 }
 
 type metricsRepository struct {
-	MetricsRepository
-
 	storage *storage.MemStorage
 }
 
