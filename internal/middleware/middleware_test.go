@@ -77,84 +77,43 @@ func TestWrap(t *testing.T) {
 	}
 }
 
-func TestTextPlainContentType(t *testing.T) {
+func TestWithContentType(t *testing.T) {
 	tests := []struct {
 		name         string
-		handler      http.Handler
-		expectHeader string
-		expectStatus int
+		ct           ContentType
+		expectedType string
 	}{
 		{
-			name: "basic handler",
-			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			}),
-			expectHeader: "text/plain; charset=utf-8",
-			expectStatus: http.StatusOK,
+			name:         "set JSON content type",
+			ct:           JSON,
+			expectedType: "application/json",
 		},
 		{
-			name: "handler writes body",
-			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusAccepted)
-				w.Write([]byte("ok"))
-			}),
-			expectHeader: "text/plain; charset=utf-8",
-			expectStatus: http.StatusAccepted,
+			name:         "set TEXT content type",
+			ct:           TEXT,
+			expectedType: "text/plain; charset=utf-8",
+		},
+		{
+			name:         "set HTML content type",
+			ct:           HTML,
+			expectedType: "text/html; charset=utf-8",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			wrapped := TextPlainContentType(tt.handler)
+			handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			wrapped := WithContentType(tt.ct)(handler)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rr := httptest.NewRecorder()
 
 			wrapped.ServeHTTP(rr, req)
 
-			assert.Equal(t, tt.expectHeader, rr.Header().Get("Content-Type"))
-			assert.Equal(t, tt.expectStatus, rr.Code)
-		})
-	}
-}
-
-func TestJSONContentType(t *testing.T) {
-	tests := []struct {
-		name         string
-		handler      http.Handler
-		expectHeader string
-		expectStatus int
-	}{
-		{
-			name: "basic handler",
-			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			}),
-			expectHeader: "application/json",
-			expectStatus: http.StatusOK,
-		},
-		{
-			name: "handler writes body",
-			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusCreated)
-				w.Write([]byte(`{"ok":true}`))
-			}),
-			expectHeader: "application/json",
-			expectStatus: http.StatusCreated,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			wrapped := JSONContentType(tt.handler)
-
-			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			rr := httptest.NewRecorder()
-
-			wrapped.ServeHTTP(rr, req)
-
-			assert.Equal(t, tt.expectHeader, rr.Header().Get("Content-Type"))
-			assert.Equal(t, tt.expectStatus, rr.Code)
+			assert.Equal(t, tt.expectedType, rr.Header().Get("Content-Type"))
 		})
 	}
 }

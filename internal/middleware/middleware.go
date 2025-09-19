@@ -12,6 +12,14 @@ import (
 
 type middleware func(handler http.Handler) http.Handler
 
+type ContentType string
+
+const (
+	JSON ContentType = "application/json"
+	TEXT ContentType = "text/plain; charset=utf-8"
+	HTML ContentType = "text/html; charset=utf-8"
+)
+
 func Wrap(handler http.Handler, middlewares ...middleware) http.Handler {
 	wrapped := handler
 	for _, handler := range middlewares {
@@ -21,22 +29,13 @@ func Wrap(handler http.Handler, middlewares ...middleware) http.Handler {
 	return wrapped
 }
 
-func TextPlainContentType(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-
-		handler.ServeHTTP(w, r)
-	})
-}
-
-func JSONContentType(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		w.Header().Set("Content-Type", "application/json")
-
-		handler.ServeHTTP(w, r)
-	})
+func WithContentType(ct ContentType) middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", string(ct))
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func Logger(handler http.Handler) http.Handler {
