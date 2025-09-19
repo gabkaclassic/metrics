@@ -20,11 +20,11 @@ type MetricsAgent struct {
 	Agent
 	stats   *runtime.MemStats
 	mu      sync.RWMutex
-	client  *httpclient.Client
+	client  httpclient.HttpClient
 	metrics []metric.Metric
 }
 
-func NewAgent(client *httpclient.Client, stats *runtime.MemStats) *MetricsAgent {
+func NewAgent(client httpclient.HttpClient, stats *runtime.MemStats) *MetricsAgent {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},
@@ -69,7 +69,7 @@ func (agent *MetricsAgent) Report() error {
 				m.Type(), m.Name(), m.Value(),
 			)
 
-			respCh, errCh := agent.client.Post(url, nil)
+			respCh, errFromClientCh := agent.client.Post(url, nil)
 
 			select {
 			case resp := <-respCh:
@@ -86,13 +86,17 @@ func (agent *MetricsAgent) Report() error {
 						return
 					}
 					resultCh <- fmt.Sprintf("Metric %s: %s", m.Name(), string(body))
+				} else {
+					errCh <- fmt.Errorf("nil response for metric %s", m.Name())
+					return
 				}
-			case err := <-errCh:
+			case err := <-errFromClientCh:
 				slog.Error(
 					"Send metric report error",
 					slog.Any("metric", m),
 					slog.String("error", err.Error()),
 				)
+				errCh <- err
 			}
 		}(currentMetric)
 	}
