@@ -26,18 +26,25 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 
 func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 	// Metrics
-	router.Handle(
+	router.Get(
+		"/",
+		middleware.Wrap(
+			http.HandlerFunc(handler.GetAll),
+			middleware.WithContentType(middleware.HTML),
+		),
+	)
+	router.Post(
 		"/update/{type}/{id}/{value}",
 		middleware.Wrap(
 			http.HandlerFunc(handler.Save),
-			middleware.TextPlainContentType,
+			middleware.WithContentType(middleware.TEXT),
 		),
 	)
-	router.Handle(
+	router.Get(
 		"/get/{id}",
 		middleware.Wrap(
 			http.HandlerFunc(handler.Get),
-			middleware.JSONContentType,
+			middleware.WithContentType(middleware.JSON),
 		),
 	)
 }

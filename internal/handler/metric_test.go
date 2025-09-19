@@ -9,12 +9,14 @@ import (
 
 	api_error "github.com/gabkaclassic/metrics/internal/error"
 	"github.com/stretchr/testify/assert"
+	"io"
 	"testing"
 )
 
 type MockMetricsService struct {
-	SaveFunc func(id, metricType, rawValue string) *api_error.ApiError
-	GetFunc  func(metricID string) (*models.Metrics, *api_error.ApiError)
+	SaveFunc   func(id, metricType, rawValue string) *api_error.ApiError
+	GetFunc    func(metricID string) (*models.Metrics, *api_error.ApiError)
+	GetAllFunc func() *map[string]any
 }
 
 func (m *MockMetricsService) Save(id, metricType, rawValue string) *api_error.ApiError {
@@ -30,6 +32,14 @@ func (m *MockMetricsService) Get(metricID string) (*models.Metrics, *api_error.A
 	}
 	return nil, nil
 }
+
+func (m *MockMetricsService) GetAll() *map[string]any {
+	if m.GetAllFunc != nil {
+		return m.GetAllFunc()
+	}
+	return nil
+}
+
 func TestNewMetricsHandler(t *testing.T) {
 	var validService service.MetricsService = &MockMetricsService{}
 
@@ -89,13 +99,6 @@ func TestMetricsHandler_Save(t *testing.T) {
 				return nil
 			},
 			expectStatus: http.StatusOK,
-		},
-		{
-			name:         "invalid method",
-			method:       http.MethodGet,
-			pathVals:     map[string]string{},
-			mockSave:     nil,
-			expectStatus: http.StatusMethodNotAllowed,
 		},
 		{
 			name:   "service returns error",
@@ -160,13 +163,6 @@ func TestMetricsHandler_Get(t *testing.T) {
 			expectBody:   &models.Metrics{ID: "m1", Value: floatPtr(42)},
 		},
 		{
-			name:         "invalid method",
-			method:       http.MethodPost,
-			pathVals:     map[string]string{},
-			mockGet:      nil,
-			expectStatus: http.StatusMethodNotAllowed,
-		},
-		{
 			name:   "service returns error",
 			method: http.MethodGet,
 			pathVals: map[string]string{
@@ -205,6 +201,61 @@ func TestMetricsHandler_Get(t *testing.T) {
 			if tt.expectErrorMsg != "" {
 				assert.Contains(t, rr.Body.String(), tt.expectErrorMsg)
 			}
+		})
+	}
+}
+
+func TestMetricsHandler_GetAll(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockReturn     *map[string]any
+		expectedStatus int
+		expectedBody   string
+	}{
+		{
+			name:           "nil metrics",
+			mockReturn:     nil,
+			expectedStatus: http.StatusNotFound,
+			expectedBody:   "Metrics not found",
+		},
+		{
+			name:           "empty metrics",
+			mockReturn:     &map[string]any{},
+			expectedStatus: http.StatusOK,
+			expectedBody:   "<h1>Metrics</h1>",
+		},
+		{
+			name: "metrics with values",
+			mockReturn: &map[string]any{
+				"c1": int64(10),
+				"g1": float64(3.14),
+			},
+			expectedStatus: http.StatusOK,
+			expectedBody:   "<td>c1</td><td>10</td>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := &MockMetricsService{
+				GetAllFunc: func() *map[string]any {
+					return tt.mockReturn
+				},
+			}
+			handler := NewMetricsHandler(mockService)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			rec := httptest.NewRecorder()
+
+			handler.GetAll(rec, req)
+
+			res := rec.Result()
+			defer res.Body.Close()
+
+			body, _ := io.ReadAll(res.Body)
+
+			assert.Equal(t, tt.expectedStatus, res.StatusCode)
+			assert.Contains(t, string(body), tt.expectedBody)
 		})
 	}
 }

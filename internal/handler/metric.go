@@ -3,7 +3,9 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	api_error "github.com/gabkaclassic/metrics/internal/error"
 	"github.com/gabkaclassic/metrics/internal/service"
@@ -26,11 +28,6 @@ func NewMetricsHandler(service service.MetricsService) *MetricsHandler {
 
 func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 
-	if r.Method != http.MethodPost {
-		api_error.RespondError(w, api_error.NotAllowed())
-		return
-	}
-
 	metricID := r.PathValue("id")
 	metricType := r.PathValue("type")
 	metricValue := r.PathValue("value")
@@ -45,11 +42,6 @@ func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 
 func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
-	if r.Method != http.MethodGet {
-		api_error.RespondError(w, api_error.NotAllowed())
-		return
-	}
-
 	metricID := r.PathValue("id")
 
 	metric, err := handler.service.Get(metricID)
@@ -60,4 +52,33 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	json.NewEncoder(w).Encode(metric)
+}
+
+func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
+	metrics := handler.service.GetAll()
+	if metrics == nil {
+		api_error.RespondError(
+			w,
+			api_error.NotFound("Metrics not found"),
+		)
+		return
+	}
+
+	builder := strings.Builder{}
+	builder.WriteString("<html><head><title>Metrics</title></head><body>")
+	builder.WriteString("<h1>Metrics</h1>")
+	builder.WriteString("<table border='1' cellpadding='5' cellspacing='0'>")
+	builder.WriteString("<tr><th>ID</th><th>Value</th></tr>")
+
+	for id, val := range *metrics {
+		builder.WriteString("<tr>")
+		builder.WriteString("<td>" + id + "</td>")
+		builder.WriteString("<td>" + fmt.Sprintf("%v", val) + "</td>")
+		builder.WriteString("</tr>")
+	}
+
+	builder.WriteString("</table>")
+	builder.WriteString("</body></html>")
+
+	_, _ = w.Write([]byte(builder.String()))
 }
