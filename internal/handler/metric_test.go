@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"encoding/json"
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/service"
 	"net/http"
@@ -146,7 +145,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 		pathVals       map[string]string
 		mockGet        func(metricID string) (*models.Metrics, *api_error.ApiError)
 		expectStatus   int
-		expectBody     *models.Metrics
+		expectBody     *string
 		expectErrorMsg string
 	}{
 		{
@@ -160,7 +159,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 				return &models.Metrics{ID: "m1", Value: floatPtr(42)}, nil
 			},
 			expectStatus: http.StatusOK,
-			expectBody:   &models.Metrics{ID: "m1", Value: floatPtr(42)},
+			expectBody:   strPtr("42\n"),
 		},
 		{
 			name:   "service returns error",
@@ -193,10 +192,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 
 			assert.Equal(t, tt.expectStatus, rr.Code)
 			if tt.expectBody != nil {
-				var body models.Metrics
-				err := json.NewDecoder(rr.Body).Decode(&body)
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expectBody, &body)
+				assert.Equal(t, *tt.expectBody, rr.Body.String())
 			}
 			if tt.expectErrorMsg != "" {
 				assert.Contains(t, rr.Body.String(), tt.expectErrorMsg)
@@ -261,5 +257,9 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 }
 
 func floatPtr(value float64) *float64 {
+	return &value
+}
+
+func strPtr(value string) *string {
 	return &value
 }

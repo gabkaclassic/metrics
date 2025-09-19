@@ -41,7 +41,7 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		),
 	)
 	router.Get(
-		"/get/{id}",
+		"/value/{type}/{id}",
 		middleware.Wrap(
 			http.HandlerFunc(handler.Get),
 			middleware.WithContentType(middleware.JSON),
