@@ -9,6 +9,12 @@ import (
 
 type ResponseFilter func(resp *http.Response, err error) bool
 
+type RequestOptions struct {
+	Params  *Params
+	Headers *Headers
+	Body    io.Reader
+}
+
 type ResponseDelay func() time.Duration
 
 type DelayGenerator func(attempt int) ResponseDelay
@@ -19,11 +25,11 @@ type Headers map[string]string
 type Params map[string]string
 
 type HttpClient interface {
-	Get(url string, params Params) (<-chan *http.Response, <-chan error)
-	Post(url string, body io.Reader) (<-chan *http.Response, <-chan error)
-	Put(url string, body io.Reader) (<-chan *http.Response, <-chan error)
-	Patch(url string, body io.Reader) (<-chan *http.Response, <-chan error)
-	Delete(url string, params Params, body io.Reader) (<-chan *http.Response, <-chan error)
+	Get(url string, opts *RequestOptions) (*http.Response, error)
+	Post(url string, opts *RequestOptions) (*http.Response, error)
+	Put(url string, opts *RequestOptions) (*http.Response, error)
+	Patch(url string, opts *RequestOptions) (*http.Response, error)
+	Delete(url string, opts *RequestOptions) (*http.Response, error)
 }
 
 type Client struct {
@@ -54,13 +60,42 @@ func NewClient(options ...Option) *Client {
 	return c
 }
 
-func (c *Client) do(url string, method string, headers Headers, body io.Reader) (*http.Response, error) {
+func buildURL(base string, params Params) string {
+	if len(params) == 0 {
+		return base
+	}
+
+	u, _ := url.Parse(base)
+	q := u.Query()
+	for k, v := range params {
+		q.Set(k, url.QueryEscape(v))
+	}
+	u.RawQuery = q.Encode()
+	return u.String()
+}
+
+func (c *Client) do(url string, method string, opts *RequestOptions) (*http.Response, error) {
+	var params Params
+	var headers Headers
+	var body io.Reader
+
+	if opts != nil {
+		if opts.Params != nil {
+			params = *opts.Params
+		}
+		if opts.Headers != nil {
+			headers = *opts.Headers
+		}
+		body = opts.Body
+	}
+
+	fullURL := buildURL(url, params)
 	retries := 0
 	var resp *http.Response
 	var err error
 
 	for {
-		req, reqErr := http.NewRequest(method, url, body)
+		req, reqErr := http.NewRequest(method, fullURL, body)
 		if reqErr != nil {
 			return nil, reqErr
 		}
@@ -86,58 +121,22 @@ func (c *Client) do(url string, method string, headers Headers, body io.Reader) 
 	return resp, err
 }
 
-func (c *Client) asyncCall(url string, method string, headers Headers, body io.Reader) (<-chan *http.Response, <-chan error) {
-	respCh := make(chan *http.Response, 1)
-	errCh := make(chan error, 1)
-
-	go func() {
-		resp, err := c.do(url, method, headers, body)
-		if err != nil {
-			errCh <- err
-			close(respCh)
-			close(errCh)
-			return
-		}
-		respCh <- resp
-		close(respCh)
-		close(errCh)
-	}()
-
-	return respCh, errCh
+func (c *Client) Get(url string, opts *RequestOptions) (*http.Response, error) {
+	return c.do(c.baseUrl+url, http.MethodGet, opts)
 }
 
-func buildURL(base string, params Params) string {
-	if len(params) == 0 {
-		return base
-	}
-
-	u, _ := url.Parse(base)
-	q := u.Query()
-	for k, v := range params {
-		q.Set(k, v)
-	}
-	u.RawQuery = q.Encode()
-	return u.String()
+func (c *Client) Post(url string, opts *RequestOptions) (*http.Response, error) {
+	return c.do(c.baseUrl+url, http.MethodPost, opts)
 }
 
-func (c *Client) Get(url string, params Params) (<-chan *http.Response, <-chan error) {
-	fullURL := buildURL(c.baseUrl+url, params)
-	return c.asyncCall(fullURL, http.MethodGet, nil, nil)
+func (c *Client) Put(url string, opts *RequestOptions) (*http.Response, error) {
+	return c.do(c.baseUrl+url, http.MethodPut, opts)
 }
 
-func (c *Client) Post(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
-	return c.asyncCall(c.baseUrl+url, http.MethodPost, nil, body)
+func (c *Client) Patch(url string, opts *RequestOptions) (*http.Response, error) {
+	return c.do(c.baseUrl+url, http.MethodPatch, opts)
 }
 
-func (c *Client) Put(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
-	return c.asyncCall(c.baseUrl+url, http.MethodPut, nil, body)
-}
-
-func (c *Client) Patch(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
-	return c.asyncCall(c.baseUrl+url, http.MethodPatch, nil, body)
-}
-
-func (c *Client) Delete(url string, params Params, body io.Reader) (<-chan *http.Response, <-chan error) {
-	fullURL := buildURL(c.baseUrl+url, params)
-	return c.asyncCall(fullURL, http.MethodDelete, nil, body)
+func (c *Client) Delete(url string, opts *RequestOptions) (*http.Response, error) {
+	return c.do(c.baseUrl+url, http.MethodDelete, opts)
 }

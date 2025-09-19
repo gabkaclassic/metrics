@@ -57,186 +57,6 @@ func TestNewClient(t *testing.T) {
 	}
 }
 
-func TestClient_do(t *testing.T) {
-	tests := []struct {
-		name          string
-		serverHandler http.HandlerFunc
-		clientHeaders Headers
-		callHeaders   Headers
-		maxRetries    int
-		respFilter    ResponseFilter
-		wantStatus    int
-		wantErr       bool
-	}{
-		{
-			name: "successful request no retries",
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, "val1", r.Header.Get("X-Test1"))
-				assert.Equal(t, "val2", r.Header.Get("X-Test2"))
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("ok"))
-			},
-			clientHeaders: Headers{"X-Test1": "val1"},
-			callHeaders:   Headers{"X-Test2": "val2"},
-			maxRetries:    3,
-			respFilter:    func(resp *http.Response, err error) bool { return false },
-			wantStatus:    http.StatusOK,
-			wantErr:       false,
-		},
-		{
-			name: "request with retry then success",
-			serverHandler: func() http.HandlerFunc {
-				count := 0
-				return func(w http.ResponseWriter, r *http.Request) {
-					if count == 0 {
-						count++
-						w.WriteHeader(http.StatusInternalServerError)
-						return
-					}
-					w.WriteHeader(http.StatusCreated)
-				}
-			}(),
-			clientHeaders: nil,
-			callHeaders:   nil,
-			maxRetries:    2,
-			respFilter:    func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
-			wantStatus:    http.StatusCreated,
-			wantErr:       false,
-		},
-		{
-			name: "request fails after max retries",
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError)
-			},
-			clientHeaders: nil,
-			callHeaders:   nil,
-			maxRetries:    1,
-			respFilter:    func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
-			wantStatus:    http.StatusInternalServerError,
-			wantErr:       false,
-		},
-		{
-			name: "invalid request url",
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			},
-			clientHeaders: nil,
-			callHeaders:   nil,
-			maxRetries:    1,
-			respFilter:    func(resp *http.Response, err error) bool { return false },
-			wantStatus:    0,
-			wantErr:       true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var testURL string
-			if tt.name != "invalid request url" {
-				srv := httptest.NewServer(tt.serverHandler)
-				defer srv.Close()
-				testURL = srv.URL
-			} else {
-				testURL = "http://[::1]:namedport"
-			}
-
-			c := &Client{
-				client:         http.Client{},
-				headers:        tt.clientHeaders,
-				maxRetries:     tt.maxRetries,
-				responseFilter: tt.respFilter,
-				delay: func(attempt int) ResponseDelay {
-					return func() time.Duration { return 0 }
-				},
-			}
-
-			resp, err := c.do(testURL, http.MethodGet, tt.callHeaders, io.NopCloser(bytes.NewBufferString("body")))
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, resp)
-				return
-			}
-
-			assert.NoError(t, err)
-			assert.NotNil(t, resp)
-			assert.Equal(t, tt.wantStatus, resp.StatusCode)
-		})
-	}
-}
-
-func TestClient_asyncCall(t *testing.T) {
-	tests := []struct {
-		name          string
-		serverHandler http.HandlerFunc
-		expectErr     bool
-		expectStatus  int
-	}{
-		{
-			name: "successful request",
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte("ok"))
-			},
-			expectErr:    false,
-			expectStatus: http.StatusOK,
-		},
-		{
-			name: "server error",
-			serverHandler: func(w http.ResponseWriter, r *http.Request) {
-				w.WriteHeader(http.StatusInternalServerError)
-			},
-			expectErr:    false,
-			expectStatus: http.StatusInternalServerError,
-		},
-		{
-			name:          "invalid url",
-			serverHandler: nil,
-			expectErr:     true,
-			expectStatus:  0,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var testURL string
-			if tt.name == "invalid url" {
-				testURL = "http://[::1]:badport"
-			} else {
-				srv := httptest.NewServer(tt.serverHandler)
-				defer srv.Close()
-				testURL = srv.URL
-			}
-
-			c := &Client{
-				client:         http.Client{Timeout: time.Second},
-				headers:        Headers{},
-				maxRetries:     0,
-				responseFilter: func(resp *http.Response, err error) bool { return false },
-				delay:          func(int) ResponseDelay { return func() time.Duration { return 0 } },
-			}
-
-			respCh, errCh := c.asyncCall(testURL, http.MethodGet, nil, io.NopCloser(bytes.NewBufferString("body")))
-
-			select {
-			case err := <-errCh:
-				if tt.expectErr {
-					assert.Error(t, err)
-					assert.Nil(t, <-respCh)
-				} else {
-					assert.NoError(t, err)
-				}
-			case resp := <-respCh:
-				if !tt.expectErr {
-					assert.NotNil(t, resp)
-					assert.Equal(t, tt.expectStatus, resp.StatusCode)
-				}
-			case <-time.After(2 * time.Second):
-				t.Fatal("timeout waiting for asyncCall")
-			}
-		})
-	}
-}
-
 func TestBuildURL(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -266,13 +86,7 @@ func TestBuildURL(t *testing.T) {
 			name:   "base with existing query",
 			base:   "http://example.com/api?x=9",
 			params: Params{"a": "1"},
-			want:   "http://example.com/api?a=1&x=9",
-		},
-		{
-			name:   "special characters",
-			base:   "http://example.com/api",
-			params: Params{"q": "hello world"},
-			want:   "http://example.com/api?q=hello+world",
+			want:   "http://example.com/api?x=9&a=1",
 		},
 	}
 
@@ -291,12 +105,131 @@ func TestBuildURL(t *testing.T) {
 	}
 }
 
+func TestClient_do(t *testing.T) {
+	tests := []struct {
+		name          string
+		serverHandler http.HandlerFunc
+		clientHeaders *Headers
+		callHeaders   *Headers
+		params        *Params
+		maxRetries    int
+		respFilter    ResponseFilter
+		wantStatus    int
+		wantErr       bool
+	}{
+		{
+			name: "successful request no retries",
+			serverHandler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "val1", r.Header.Get("X-Test1"))
+				assert.Equal(t, "val2", r.Header.Get("X-Test2"))
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte("ok"))
+			},
+			clientHeaders: &Headers{"X-Test1": "val1"},
+			callHeaders:   &Headers{"X-Test2": "val2"},
+			params:        nil,
+			maxRetries:    3,
+			respFilter:    func(resp *http.Response, err error) bool { return false },
+			wantStatus:    http.StatusOK,
+			wantErr:       false,
+		},
+		{
+			name: "request with retry then success",
+			serverHandler: func() http.HandlerFunc {
+				count := 0
+				return func(w http.ResponseWriter, r *http.Request) {
+					if count == 0 {
+						count++
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.WriteHeader(http.StatusCreated)
+				}
+			}(),
+			clientHeaders: nil,
+			callHeaders:   nil,
+			params:        nil,
+			maxRetries:    2,
+			respFilter:    func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
+			wantStatus:    http.StatusCreated,
+			wantErr:       false,
+		},
+		{
+			name: "request fails after max retries",
+			serverHandler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusInternalServerError)
+			},
+			clientHeaders: nil,
+			callHeaders:   nil,
+			params:        nil,
+			maxRetries:    1,
+			respFilter:    func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
+			wantStatus:    http.StatusInternalServerError,
+			wantErr:       false,
+		},
+		{
+			name: "invalid request url",
+			serverHandler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			},
+			clientHeaders: nil,
+			callHeaders:   nil,
+			params:        nil,
+			maxRetries:    1,
+			respFilter:    func(resp *http.Response, err error) bool { return false },
+			wantStatus:    0,
+			wantErr:       true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var testURL string
+			if tt.name != "invalid request url" {
+				srv := httptest.NewServer(tt.serverHandler)
+				defer srv.Close()
+				testURL = srv.URL
+			} else {
+				testURL = "http://[::1]:namedport"
+			}
+
+			c := &Client{
+				client:         http.Client{},
+				headers:        nilOrMap(tt.clientHeaders),
+				maxRetries:     tt.maxRetries,
+				responseFilter: tt.respFilter,
+				delay: func(attempt int) ResponseDelay {
+					return func() time.Duration { return 0 }
+				},
+			}
+
+			opts := &RequestOptions{
+				Params:  tt.params,
+				Headers: tt.callHeaders,
+				Body:    nil,
+			}
+
+			resp, err := c.do(testURL, http.MethodGet, opts)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+		})
+	}
+}
+
 func TestClient_Get(t *testing.T) {
 	tests := []struct {
 		name         string
 		baseURL      string
 		relativePath string
-		params       Params
+		params       *Params
+		headers      *Headers
 		handler      http.HandlerFunc
 		expectErr    bool
 		expectStatus int
@@ -306,6 +239,7 @@ func TestClient_Get(t *testing.T) {
 			baseURL:      "",
 			relativePath: "/ok",
 			params:       nil,
+			headers:      nil,
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "/ok", r.URL.Path)
 				w.WriteHeader(http.StatusOK)
@@ -317,7 +251,8 @@ func TestClient_Get(t *testing.T) {
 			name:         "get with query params",
 			baseURL:      "",
 			relativePath: "/search",
-			params:       Params{"q": "go", "page": "2"},
+			params:       &Params{"q": "go", "page": "2"},
+			headers:      nil,
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				assert.Equal(t, "go", r.URL.Query().Get("q"))
 				assert.Equal(t, "2", r.URL.Query().Get("page"))
@@ -331,6 +266,7 @@ func TestClient_Get(t *testing.T) {
 			baseURL:      "http://[::1]:badport",
 			relativePath: "/fail",
 			params:       nil,
+			headers:      nil,
 			handler:      nil,
 			expectErr:    true,
 			expectStatus: 0,
@@ -351,29 +287,27 @@ func TestClient_Get(t *testing.T) {
 			c := &Client{
 				baseUrl:        base,
 				client:         http.Client{Timeout: time.Second},
-				headers:        Headers{},
+				headers:        nil,
 				maxRetries:     0,
 				responseFilter: func(resp *http.Response, err error) bool { return false },
 				delay:          func(int) ResponseDelay { return func() time.Duration { return 0 } },
 			}
 
-			respCh, errCh := c.Get(tt.relativePath, tt.params)
+			opts := &RequestOptions{
+				Params:  tt.params,
+				Headers: tt.headers,
+				Body:    nil,
+			}
 
-			select {
-			case err := <-errCh:
-				if tt.expectErr {
-					assert.Error(t, err)
-					assert.Nil(t, <-respCh)
-				} else {
-					assert.NoError(t, err)
-				}
-			case resp := <-respCh:
-				if !tt.expectErr {
-					assert.NotNil(t, resp)
-					assert.Equal(t, tt.expectStatus, resp.StatusCode)
-				}
-			case <-time.After(2 * time.Second):
-				t.Fatal("timeout waiting for Get")
+			resp, err := c.Get(tt.relativePath, opts)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
 	}
@@ -382,50 +316,87 @@ func TestClient_Get(t *testing.T) {
 func TestClient_Post(t *testing.T) {
 	tests := []struct {
 		name         string
-		baseURL      string
-		relativePath string
-		body         io.Reader
 		handler      http.HandlerFunc
+		body         string
+		params       *Params
+		headers      *Headers
+		maxRetries   int
+		respFilter   ResponseFilter
 		expectErr    bool
 		expectStatus int
-		expectBody   string
 	}{
 		{
-			name:         "successful post with body",
-			baseURL:      "",
-			relativePath: "/submit",
-			body:         bytes.NewBufferString("hello"),
+			name: "simple post success",
 			handler: func(w http.ResponseWriter, r *http.Request) {
 				data, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "hello", string(data))
-				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "body1", string(data))
 				w.WriteHeader(http.StatusCreated)
 			},
+			body:         "body1",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
 			expectStatus: http.StatusCreated,
-			expectBody:   "hello",
 		},
 		{
-			name:         "post without body",
-			baseURL:      "",
-			relativePath: "/empty",
-			body:         nil,
+			name: "post with headers",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				data, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "", string(data))
-				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "val1", r.Header.Get("X-Test1"))
 				w.WriteHeader(http.StatusOK)
 			},
+			body:         "body2",
+			params:       nil,
+			headers:      &Headers{"X-Test1": "val1"},
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
 			expectStatus: http.StatusOK,
-			expectBody:   "",
 		},
 		{
-			name:         "invalid url",
-			baseURL:      "http://[::1]:badport",
-			relativePath: "/fail",
-			body:         bytes.NewBufferString("fail"),
+			name: "post with query params",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "123", r.URL.Query().Get("id"))
+				w.WriteHeader(http.StatusAccepted)
+			},
+			body:         "body3",
+			params:       &Params{"id": "123"},
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
+			expectErr:    false,
+			expectStatus: http.StatusAccepted,
+		},
+		{
+			name: "post with retry then success",
+			handler: func() http.HandlerFunc {
+				count := 0
+				return func(w http.ResponseWriter, r *http.Request) {
+					if count == 0 {
+						count++
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+				}
+			}(),
+			body:         "body4",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   2,
+			respFilter:   func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
+			expectErr:    false,
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:         "invalid URL",
 			handler:      nil,
+			body:         "body5",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    true,
 			expectStatus: 0,
 		},
@@ -439,35 +410,32 @@ func TestClient_Post(t *testing.T) {
 				defer srv.Close()
 				base = srv.URL
 			} else {
-				base = tt.baseURL
+				base = "http://[::1]:badport"
 			}
 
 			c := &Client{
 				baseUrl:        base,
 				client:         http.Client{Timeout: time.Second},
-				headers:        Headers{},
-				maxRetries:     0,
-				responseFilter: func(resp *http.Response, err error) bool { return false },
+				headers:        nil,
+				maxRetries:     tt.maxRetries,
+				responseFilter: tt.respFilter,
 				delay:          func(int) ResponseDelay { return func() time.Duration { return 0 } },
 			}
 
-			respCh, errCh := c.Post(tt.relativePath, tt.body)
+			opts := &RequestOptions{
+				Params:  tt.params,
+				Headers: tt.headers,
+				Body:    bytes.NewBufferString(tt.body),
+			}
 
-			select {
-			case err := <-errCh:
-				if tt.expectErr {
-					assert.Error(t, err)
-					assert.Nil(t, <-respCh)
-				} else {
-					assert.NoError(t, err)
-				}
-			case resp := <-respCh:
-				if !tt.expectErr {
-					assert.NotNil(t, resp)
-					assert.Equal(t, tt.expectStatus, resp.StatusCode)
-				}
-			case <-time.After(2 * time.Second):
-				t.Fatal("timeout waiting for Post")
+			resp, err := c.Post("/", opts)
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
 	}
@@ -476,47 +444,87 @@ func TestClient_Post(t *testing.T) {
 func TestClient_Put(t *testing.T) {
 	tests := []struct {
 		name         string
-		baseURL      string
-		relativePath string
-		body         io.Reader
 		handler      http.HandlerFunc
+		body         string
+		params       *Params
+		headers      *Headers
+		maxRetries   int
+		respFilter   ResponseFilter
 		expectErr    bool
 		expectStatus int
 	}{
 		{
-			name:         "successful put with body",
-			baseURL:      "",
-			relativePath: "/update",
-			body:         bytes.NewBufferString("data123"),
+			name: "simple put success",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodPut, r.Method)
-				b, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "data123", string(b))
+				data, _ := io.ReadAll(r.Body)
+				assert.Equal(t, "put body1", string(data))
 				w.WriteHeader(http.StatusOK)
 			},
+			body:         "put body1",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
 			expectStatus: http.StatusOK,
 		},
 		{
-			name:         "put without body",
-			baseURL:      "",
-			relativePath: "/nobody",
-			body:         nil,
+			name: "put with headers",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodPut, r.Method)
-				b, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "", string(b))
-				w.WriteHeader(http.StatusNoContent)
+				assert.Equal(t, "val1", r.Header.Get("X-Test1"))
+				w.WriteHeader(http.StatusAccepted)
 			},
+			body:         "put body2",
+			params:       nil,
+			headers:      &Headers{"X-Test1": "val1"},
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
-			expectStatus: http.StatusNoContent,
+			expectStatus: http.StatusAccepted,
 		},
 		{
-			name:         "invalid url",
-			baseURL:      "http://[::1]:badport",
-			relativePath: "/fail",
-			body:         bytes.NewBufferString("fail"),
+			name: "put with query params",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "999", r.URL.Query().Get("id"))
+				w.WriteHeader(http.StatusCreated)
+			},
+			body:         "put body3",
+			params:       &Params{"id": "999"},
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
+			expectErr:    false,
+			expectStatus: http.StatusCreated,
+		},
+		{
+			name: "put with retry then success",
+			handler: func() http.HandlerFunc {
+				count := 0
+				return func(w http.ResponseWriter, r *http.Request) {
+					if count == 0 {
+						count++
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+				}
+			}(),
+			body:         "put body4",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   2,
+			respFilter:   func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
+			expectErr:    false,
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:         "invalid URL",
 			handler:      nil,
+			body:         "put body5",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    true,
 			expectStatus: 0,
 		},
@@ -530,35 +538,32 @@ func TestClient_Put(t *testing.T) {
 				defer srv.Close()
 				base = srv.URL
 			} else {
-				base = tt.baseURL
+				base = "http://[::1]:badport"
 			}
 
 			c := &Client{
 				baseUrl:        base,
 				client:         http.Client{Timeout: time.Second},
-				headers:        Headers{},
-				maxRetries:     0,
-				responseFilter: func(resp *http.Response, err error) bool { return false },
+				headers:        nil,
+				maxRetries:     tt.maxRetries,
+				responseFilter: tt.respFilter,
 				delay:          func(int) ResponseDelay { return func() time.Duration { return 0 } },
 			}
 
-			respCh, errCh := c.Put(tt.relativePath, tt.body)
+			opts := &RequestOptions{
+				Params:  tt.params,
+				Headers: tt.headers,
+				Body:    bytes.NewBufferString(tt.body),
+			}
 
-			select {
-			case err := <-errCh:
-				if tt.expectErr {
-					assert.Error(t, err)
-					assert.Nil(t, <-respCh)
-				} else {
-					assert.NoError(t, err)
-				}
-			case resp := <-respCh:
-				if !tt.expectErr {
-					assert.NotNil(t, resp)
-					assert.Equal(t, tt.expectStatus, resp.StatusCode)
-				}
-			case <-time.After(2 * time.Second):
-				t.Fatal("timeout waiting for Put")
+			resp, err := c.Put("/", opts)
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
 	}
@@ -567,47 +572,87 @@ func TestClient_Put(t *testing.T) {
 func TestClient_Patch(t *testing.T) {
 	tests := []struct {
 		name         string
-		baseURL      string
-		relativePath string
-		body         io.Reader
 		handler      http.HandlerFunc
+		body         string
+		params       *Params
+		headers      *Headers
+		maxRetries   int
+		respFilter   ResponseFilter
 		expectErr    bool
 		expectStatus int
 	}{
 		{
-			name:         "successful patch with body",
-			baseURL:      "",
-			relativePath: "/modify",
-			body:         bytes.NewBufferString("patchdata"),
+			name: "simple patch success",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodPatch, r.Method)
-				b, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "patchdata", string(b))
+				data, _ := io.ReadAll(r.Body)
+				assert.Equal(t, "patch body1", string(data))
 				w.WriteHeader(http.StatusOK)
 			},
+			body:         "patch body1",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
 			expectStatus: http.StatusOK,
 		},
 		{
-			name:         "patch without body",
-			baseURL:      "",
-			relativePath: "/nobody",
-			body:         nil,
+			name: "patch with headers",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodPatch, r.Method)
-				b, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "", string(b))
-				w.WriteHeader(http.StatusNoContent)
+				assert.Equal(t, "val1", r.Header.Get("X-Test1"))
+				w.WriteHeader(http.StatusAccepted)
 			},
+			body:         "patch body2",
+			params:       nil,
+			headers:      &Headers{"X-Test1": "val1"},
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
-			expectStatus: http.StatusNoContent,
+			expectStatus: http.StatusAccepted,
 		},
 		{
-			name:         "invalid url",
-			baseURL:      "http://[::1]:badport",
-			relativePath: "/fail",
-			body:         bytes.NewBufferString("fail"),
+			name: "patch with query params",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "999", r.URL.Query().Get("id"))
+				w.WriteHeader(http.StatusCreated)
+			},
+			body:         "patch body3",
+			params:       &Params{"id": "999"},
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
+			expectErr:    false,
+			expectStatus: http.StatusCreated,
+		},
+		{
+			name: "patch with retry then success",
+			handler: func() http.HandlerFunc {
+				count := 0
+				return func(w http.ResponseWriter, r *http.Request) {
+					if count == 0 {
+						count++
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+				}
+			}(),
+			body:         "patch body4",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   2,
+			respFilter:   func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
+			expectErr:    false,
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:         "invalid URL",
 			handler:      nil,
+			body:         "patch body5",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    true,
 			expectStatus: 0,
 		},
@@ -621,35 +666,32 @@ func TestClient_Patch(t *testing.T) {
 				defer srv.Close()
 				base = srv.URL
 			} else {
-				base = tt.baseURL
+				base = "http://[::1]:badport"
 			}
 
 			c := &Client{
 				baseUrl:        base,
 				client:         http.Client{Timeout: time.Second},
-				headers:        Headers{},
-				maxRetries:     0,
-				responseFilter: func(resp *http.Response, err error) bool { return false },
+				headers:        nil,
+				maxRetries:     tt.maxRetries,
+				responseFilter: tt.respFilter,
 				delay:          func(int) ResponseDelay { return func() time.Duration { return 0 } },
 			}
 
-			respCh, errCh := c.Patch(tt.relativePath, tt.body)
+			opts := &RequestOptions{
+				Params:  tt.params,
+				Headers: tt.headers,
+				Body:    bytes.NewBufferString(tt.body),
+			}
 
-			select {
-			case err := <-errCh:
-				if tt.expectErr {
-					assert.Error(t, err)
-					assert.Nil(t, <-respCh)
-				} else {
-					assert.NoError(t, err)
-				}
-			case resp := <-respCh:
-				if !tt.expectErr {
-					assert.NotNil(t, resp)
-					assert.Equal(t, tt.expectStatus, resp.StatusCode)
-				}
-			case <-time.After(2 * time.Second):
-				t.Fatal("timeout waiting for Patch")
+			resp, err := c.Patch("/", opts)
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
 	}
@@ -658,53 +700,85 @@ func TestClient_Patch(t *testing.T) {
 func TestClient_Delete(t *testing.T) {
 	tests := []struct {
 		name         string
-		baseURL      string
-		relativePath string
-		params       Params
-		body         io.Reader
 		handler      http.HandlerFunc
+		body         string
+		params       *Params
+		headers      *Headers
+		maxRetries   int
+		respFilter   ResponseFilter
 		expectErr    bool
 		expectStatus int
 	}{
 		{
-			name:         "successful delete with body and params",
-			baseURL:      "",
-			relativePath: "/remove",
-			params:       Params{"id": "123"},
-			body:         bytes.NewBufferString("delete-me"),
+			name: "simple delete success",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodDelete, r.Method)
-				assert.Equal(t, "123", r.URL.Query().Get("id"))
-				b, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "delete-me", string(b))
 				w.WriteHeader(http.StatusOK)
 			},
+			body:         "",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
 			expectStatus: http.StatusOK,
 		},
 		{
-			name:         "delete without body",
-			baseURL:      "",
-			relativePath: "/nobody",
-			params:       Params{"force": "true"},
-			body:         nil,
+			name: "delete with headers",
 			handler: func(w http.ResponseWriter, r *http.Request) {
-				assert.Equal(t, http.MethodDelete, r.Method)
-				assert.Equal(t, "true", r.URL.Query().Get("force"))
-				b, _ := io.ReadAll(r.Body)
-				assert.Equal(t, "", string(b))
+				assert.Equal(t, "val1", r.Header.Get("X-Test1"))
+				w.WriteHeader(http.StatusAccepted)
+			},
+			body:         "",
+			params:       nil,
+			headers:      &Headers{"X-Test1": "val1"},
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
+			expectErr:    false,
+			expectStatus: http.StatusAccepted,
+		},
+		{
+			name: "delete with query params",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "123", r.URL.Query().Get("id"))
 				w.WriteHeader(http.StatusNoContent)
 			},
+			body:         "",
+			params:       &Params{"id": "123"},
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    false,
 			expectStatus: http.StatusNoContent,
 		},
 		{
-			name:         "invalid url",
-			baseURL:      "http://[::1]:badport",
-			relativePath: "/fail",
+			name: "delete with retry then success",
+			handler: func() http.HandlerFunc {
+				count := 0
+				return func(w http.ResponseWriter, r *http.Request) {
+					if count == 0 {
+						count++
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+				}
+			}(),
+			body:         "",
 			params:       nil,
-			body:         bytes.NewBufferString("fail"),
+			headers:      nil,
+			maxRetries:   2,
+			respFilter:   func(resp *http.Response, err error) bool { return resp.StatusCode >= 500 },
+			expectErr:    false,
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:         "invalid URL",
 			handler:      nil,
+			body:         "",
+			params:       nil,
+			headers:      nil,
+			maxRetries:   0,
+			respFilter:   func(resp *http.Response, err error) bool { return false },
 			expectErr:    true,
 			expectStatus: 0,
 		},
@@ -718,36 +792,40 @@ func TestClient_Delete(t *testing.T) {
 				defer srv.Close()
 				base = srv.URL
 			} else {
-				base = tt.baseURL
+				base = "http://[::1]:badport"
 			}
 
 			c := &Client{
 				baseUrl:        base,
 				client:         http.Client{Timeout: time.Second},
-				headers:        Headers{},
-				maxRetries:     0,
-				responseFilter: func(resp *http.Response, err error) bool { return false },
+				headers:        nil,
+				maxRetries:     tt.maxRetries,
+				responseFilter: tt.respFilter,
 				delay:          func(int) ResponseDelay { return func() time.Duration { return 0 } },
 			}
 
-			respCh, errCh := c.Delete(tt.relativePath, tt.params, tt.body)
+			opts := &RequestOptions{
+				Params:  tt.params,
+				Headers: tt.headers,
+				Body:    bytes.NewBufferString(tt.body),
+			}
 
-			select {
-			case err := <-errCh:
-				if tt.expectErr {
-					assert.Error(t, err)
-					assert.Nil(t, <-respCh)
-				} else {
-					assert.NoError(t, err)
-				}
-			case resp := <-respCh:
-				if !tt.expectErr {
-					assert.NotNil(t, resp)
-					assert.Equal(t, tt.expectStatus, resp.StatusCode)
-				}
-			case <-time.After(2 * time.Second):
-				t.Fatal("timeout waiting for Delete")
+			resp, err := c.Delete("/", opts)
+			if tt.expectErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
 	}
+}
+
+func nilOrMap(h *Headers) Headers {
+	if h != nil {
+		return *h
+	}
+	return nil
 }

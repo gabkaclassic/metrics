@@ -60,45 +60,44 @@ func (agent *MetricsAgent) Report() error {
 	errCh := make(chan error, len(metricCopy))
 	resultCh := make(chan string, len(metricCopy))
 
-	for _, currentMetric := range metricCopy {
+	for _, m := range metricCopy {
 		wg.Add(1)
-		go func(m metric.Metric) {
+		go func(metric metric.Metric) {
 			defer wg.Done()
 
-			url := fmt.Sprintf("/%s/%s/%v",
-				m.Type(), m.Name(), m.Value(),
-			)
+			url := fmt.Sprintf("/%s/%s/%v", metric.Type(), metric.Name(), metric.Value())
+			resp, err := agent.client.Post(url, &httpclient.RequestOptions{})
 
-			respCh, errFromClientCh := agent.client.Post(url, nil)
-
-			select {
-			case resp := <-respCh:
-				if resp != nil {
-					defer resp.Body.Close()
-					body, err := io.ReadAll(resp.Body)
-					if err != nil {
-						slog.Error(
-							"Read sending report body error",
-							slog.Any("metric", m),
-							slog.Any("response", resp),
-							slog.String("error", err.Error()),
-						)
-						return
-					}
-					resultCh <- fmt.Sprintf("Metric %s: %s", m.Name(), string(body))
-				} else {
-					errCh <- fmt.Errorf("nil response for metric %s", m.Name())
-					return
-				}
-			case err := <-errFromClientCh:
+			if err != nil {
 				slog.Error(
 					"Send metric report error",
-					slog.Any("metric", m),
+					slog.Any("metric", metric),
 					slog.String("error", err.Error()),
 				)
 				errCh <- err
+				return
 			}
-		}(currentMetric)
+
+			if resp == nil {
+				errCh <- fmt.Errorf("nil response for metric %s", metric.Name())
+				return
+			}
+
+			defer resp.Body.Close()
+			body, readErr := io.ReadAll(resp.Body)
+			if readErr != nil {
+				slog.Error(
+					"Read sending report body error",
+					slog.Any("metric", metric),
+					slog.Any("response", resp),
+					slog.String("error", readErr.Error()),
+				)
+				errCh <- readErr
+				return
+			}
+
+			resultCh <- fmt.Sprintf("Metric %s: %s", metric.Name(), string(body))
+		}(m)
 	}
 
 	go func() {

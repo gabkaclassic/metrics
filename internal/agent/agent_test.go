@@ -69,22 +69,22 @@ func TestMetricsAgent_Poll(t *testing.T) {
 }
 
 type mockHttpClient struct {
-	postFunc func(url string, body io.Reader) (<-chan *http.Response, <-chan error)
+	postFunc func(url string, opts *httpclient.RequestOptions) (*http.Response, error)
 }
 
-func (m *mockHttpClient) Get(url string, params httpclient.Params) (<-chan *http.Response, <-chan error) {
+func (m *mockHttpClient) Get(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
-func (m *mockHttpClient) Post(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
-	return m.postFunc(url, body)
+func (m *mockHttpClient) Post(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+	return m.postFunc(url, opts)
 }
-func (m *mockHttpClient) Put(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
+func (m *mockHttpClient) Put(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
-func (m *mockHttpClient) Patch(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
+func (m *mockHttpClient) Patch(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
-func (m *mockHttpClient) Delete(url string, params httpclient.Params, body io.Reader) (<-chan *http.Response, <-chan error) {
+func (m *mockHttpClient) Delete(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
 
@@ -98,14 +98,11 @@ func TestMetricsAgent_Report(t *testing.T) {
 			name: "success",
 			clientFunc: func() httpclient.HttpClient {
 				return &mockHttpClient{
-					postFunc: func(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
-						respCh := make(chan *http.Response, 1)
-						errCh := make(chan error, 1)
-						respCh <- &http.Response{
+					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+						return &http.Response{
 							StatusCode: 200,
 							Body:       io.NopCloser(bytes.NewBufferString("ok")),
-						}
-						return respCh, errCh
+						}, nil
 					},
 				}
 			},
@@ -115,10 +112,19 @@ func TestMetricsAgent_Report(t *testing.T) {
 			name: "error",
 			clientFunc: func() httpclient.HttpClient {
 				return &mockHttpClient{
-					postFunc: func(url string, body io.Reader) (<-chan *http.Response, <-chan error) {
-						errCh := make(chan error, 1)
-						errCh <- errors.New("network error")
-						return nil, errCh
+					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+						return nil, errors.New("network error")
+					},
+				}
+			},
+			wantErr: true,
+		},
+		{
+			name: "nil response",
+			clientFunc: func() httpclient.HttpClient {
+				return &mockHttpClient{
+					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+						return nil, nil
 					},
 				}
 			},
