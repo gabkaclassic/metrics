@@ -13,6 +13,7 @@ import (
 type MetricsService interface {
 	Get(metricID string) (*models.Metrics, *api_error.ApiError)
 	Save(id string, metricType string, rawValue string) *api_error.ApiError
+	GetAll() *map[string]any
 }
 
 type metricsService struct {
@@ -28,6 +29,10 @@ func NewMetricsService(repository repository.MetricsRepository) MetricsService {
 	return &metricsService{
 		repository: repository,
 	}
+}
+
+func (service *metricsService) GetAll() *map[string]any {
+	return service.repository.GetAll()
 }
 
 func (service *metricsService) Get(metricID string) (*models.Metrics, *api_error.ApiError) {

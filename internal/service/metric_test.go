@@ -9,9 +9,10 @@ import (
 )
 
 type MockMetricsRepository struct {
-	AddFunc   func(metric models.Metrics) error
-	ResetFunc func(metric models.Metrics) error
-	GetFunc   func(metricID string) (*models.Metrics, error)
+	AddFunc    func(metric models.Metrics) error
+	ResetFunc  func(metric models.Metrics) error
+	GetFunc    func(metricID string) (*models.Metrics, error)
+	GetAllFunc func() *map[string]any
 }
 
 func (m *MockMetricsRepository) Add(metric models.Metrics) error {
@@ -33,6 +34,13 @@ func (m *MockMetricsRepository) Get(metricID string) (*models.Metrics, error) {
 		return m.GetFunc(metricID)
 	}
 	return nil, nil
+}
+
+func (m *MockMetricsRepository) GetAll() *map[string]any {
+	if m.GetAllFunc != nil {
+		return m.GetAllFunc()
+	}
+	return nil
 }
 
 func TestNewMetricsService(t *testing.T) {
@@ -212,6 +220,57 @@ func TestMetricsService_Save(t *testing.T) {
 				assert.Contains(t, err.Message, tt.errorContains)
 			} else {
 				assert.Nil(t, err)
+			}
+		})
+	}
+}
+
+func TestMetricsService_GetAll(t *testing.T) {
+	tests := []struct {
+		name       string
+		mockReturn *map[string]any
+		expected   map[string]any
+	}{
+		{
+			name:       "empty repository",
+			mockReturn: &map[string]any{},
+			expected:   map[string]any{},
+		},
+		{
+			name: "repository with metrics",
+			mockReturn: &map[string]any{
+				"c1": int64(10),
+				"g1": float64(3.14),
+			},
+			expected: map[string]any{
+				"c1": int64(10),
+				"g1": float64(3.14),
+			},
+		},
+		{
+			name:       "repository returns nil",
+			mockReturn: nil,
+			expected:   nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := &MockMetricsRepository{
+				GetAllFunc: func() *map[string]any {
+					return tt.mockReturn
+				},
+			}
+
+			service := NewMetricsService(mockRepo)
+
+			result := service.GetAll()
+
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.expected, *result)
 			}
 		})
 	}
