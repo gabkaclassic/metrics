@@ -7,11 +7,14 @@ import (
 	"github.com/gabkaclassic/metrics/internal/service"
 	"github.com/gabkaclassic/metrics/internal/storage"
 	"github.com/gabkaclassic/metrics/pkg/httpserver"
+	"github.com/gabkaclassic/metrics/pkg/logger"
 )
 
 func main() {
 
 	cfg := config.ParseServerConfig()
+
+	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
 	server := httpserver.New(
 		httpserver.Address(cfg.Address),

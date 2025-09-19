@@ -11,10 +11,13 @@ import (
 	"github.com/gabkaclassic/metrics/internal/agent"
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
+	"github.com/gabkaclassic/metrics/pkg/logger"
 )
 
 func main() {
 	cfg := config.ParseAgentConfig()
+
+	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
 	client := httpclient.NewClient(
 		httpclient.BaseURL(cfg.Client.BaseUrl),
