@@ -45,22 +45,14 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	metricID := r.PathValue("id")
 	metricType := r.PathValue("type")
 
-	metric, err := handler.service.Get(metricID)
+	value, err := handler.service.Get(metricID, metricType)
 
 	if err != nil {
 		api_error.RespondError(w, err)
 		return
 	}
 
-	if metric.MType != metricType {
-		api_error.RespondError(
-			w,
-			api_error.NotFound(fmt.Sprintf("Metric %s with type %s not found", metricID, metricType)),
-		)
-		return
-	}
-
-	json.NewEncoder(w).Encode(metric.Value)
+	json.NewEncoder(w).Encode(value)
 }
 
 func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {

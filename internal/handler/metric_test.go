@@ -14,7 +14,7 @@ import (
 
 type MockMetricsService struct {
 	SaveFunc   func(id, metricType, rawValue string) *api_error.ApiError
-	GetFunc    func(metricID string) (*models.Metrics, *api_error.ApiError)
+	GetFunc    func(metricID string, metricType string) (any, *api_error.ApiError)
 	GetAllFunc func() *map[string]any
 }
 
@@ -25,9 +25,9 @@ func (m *MockMetricsService) Save(id, metricType, rawValue string) *api_error.Ap
 	return nil
 }
 
-func (m *MockMetricsService) Get(metricID string) (*models.Metrics, *api_error.ApiError) {
+func (m *MockMetricsService) Get(metricID string, metricType string) (any, *api_error.ApiError) {
 	if m.GetFunc != nil {
-		return m.GetFunc(metricID)
+		return m.GetFunc(metricID, metricType)
 	}
 	return nil, nil
 }
@@ -143,31 +143,51 @@ func TestMetricsHandler_Get(t *testing.T) {
 		name           string
 		method         string
 		pathVals       map[string]string
-		mockGet        func(metricID string) (*models.Metrics, *api_error.ApiError)
+		mockGet        func(metricID, metricType string) (any, *api_error.ApiError)
 		expectStatus   int
 		expectBody     *string
 		expectErrorMsg string
 	}{
 		{
-			name:   "valid GET",
+			name:   "valid GET gauge",
 			method: http.MethodGet,
 			pathVals: map[string]string{
-				"id": "m1",
+				"id":   "m1",
+				"type": models.Gauge,
 			},
-			mockGet: func(metricID string) (*models.Metrics, *api_error.ApiError) {
+			mockGet: func(metricID, metricType string) (any, *api_error.ApiError) {
 				assert.Equal(t, "m1", metricID)
-				return &models.Metrics{ID: "m1", Value: floatPtr(42)}, nil
+				assert.Equal(t, models.Gauge, metricType)
+				val := 42.0
+				return &val, nil
 			},
 			expectStatus: http.StatusOK,
 			expectBody:   strPtr("42\n"),
 		},
 		{
+			name:   "valid GET counter",
+			method: http.MethodGet,
+			pathVals: map[string]string{
+				"id":   "c1",
+				"type": models.Counter,
+			},
+			mockGet: func(metricID, metricType string) (any, *api_error.ApiError) {
+				assert.Equal(t, "c1", metricID)
+				assert.Equal(t, models.Counter, metricType)
+				val := int64(7)
+				return &val, nil
+			},
+			expectStatus: http.StatusOK,
+			expectBody:   strPtr("7\n"),
+		},
+		{
 			name:   "service returns error",
 			method: http.MethodGet,
 			pathVals: map[string]string{
-				"id": "m2",
+				"id":   "m2",
+				"type": models.Gauge,
 			},
-			mockGet: func(metricID string) (*models.Metrics, *api_error.ApiError) {
+			mockGet: func(metricID, metricType string) (any, *api_error.ApiError) {
 				return nil, api_error.NotFound("metric m2 not found")
 			},
 			expectStatus:   http.StatusNotFound,
