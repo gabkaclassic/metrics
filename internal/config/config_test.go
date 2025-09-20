@@ -41,7 +41,7 @@ func TestParseServerConfig(t *testing.T) {
 		{
 			name:        "default values",
 			args:        []string{"cmd"},
-			wantAddress: "0.0.0.0:8080",
+			wantAddress: "localhost:8080",
 			wantLog: Log{
 				Level:   "info",
 				File:    "",
@@ -75,11 +75,11 @@ func TestParseAgentConfig(t *testing.T) {
 			name: "custom flags",
 			args: []string{
 				"cmd",
-				"-p=5s",
-				"-r=15s",
+				"-p=5",
+				"-r=15",
 				"-a=http://localhost:8080/update",
 				"-report-retries=5",
-				"-report-timeout=4s",
+				"-report-timeout=4",
 				"-log-level=warn",
 				"-log-file=test_agent.log",
 				"-log-console=true",
@@ -105,7 +105,7 @@ func TestParseAgentConfig(t *testing.T) {
 			wantPoll:   2 * time.Second,
 			wantReport: 10 * time.Second,
 			wantClient: Client{
-				BaseUrl: "http://0.0.0.0:8080/update",
+				BaseUrl: "localhost:8080",
 				Retries: 3,
 				Timeout: 3 * time.Second,
 			},
