@@ -11,7 +11,7 @@ import (
 )
 
 type MetricsService interface {
-	Get(metricID string) (*models.Metrics, *api_error.ApiError)
+	Get(metricID string, metricType string) (any, *api_error.ApiError)
 	Save(id string, metricType string, rawValue string) *api_error.ApiError
 	GetAll() *map[string]any
 }
@@ -35,14 +35,18 @@ func (service *metricsService) GetAll() *map[string]any {
 	return service.repository.GetAll()
 }
 
-func (service *metricsService) Get(metricID string) (*models.Metrics, *api_error.ApiError) {
+func (service *metricsService) Get(metricID string, metricType string) (any, *api_error.ApiError) {
 
 	metric, err := service.repository.Get(metricID)
+
+	if metric == nil || metric.MType != metricType {
+		return nil, api_error.NotFound(fmt.Sprintf("Metric %s with type %s not found", metricID, metricType))
+	}
 
 	if err != nil {
 		return nil, api_error.Internal("get metric error", err)
 	} else if metric == nil {
-		return nil, api_error.NotFound(fmt.Sprintf("metric %s not found", metricID))
+		return nil, api_error.NotFound(fmt.Sprintf("Metric %s with type %s not found", metricID, metricType))
 	}
 
 	return metric, nil

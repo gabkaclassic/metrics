@@ -81,24 +81,38 @@ func TestMetricsService_Get(t *testing.T) {
 	tests := []struct {
 		name           string
 		metricID       string
+		metricType     string
 		mockGet        func(metricID string) (*models.Metrics, error)
-		expectValue    *models.Metrics
+		expectValue    any
 		expectApiError bool
 		expectNotFound bool
 	}{
 		{
-			name:     "metric exists",
-			metricID: "m1",
+			name:       "metric exists with correct type",
+			metricID:   "m1",
+			metricType: models.Gauge,
 			mockGet: func(metricID string) (*models.Metrics, error) {
-				return &models.Metrics{ID: "m1", Value: floatPtr(10)}, nil
+				return &models.Metrics{ID: "m1", MType: models.Gauge, Value: floatPtr(10)}, nil
 			},
-			expectValue:    &models.Metrics{ID: "m1", Value: floatPtr(10)},
+			expectValue:    &models.Metrics{ID: "m1", MType: models.Gauge, Value: floatPtr(10)},
 			expectApiError: false,
 			expectNotFound: false,
 		},
 		{
-			name:     "metric does not exist",
-			metricID: "m2",
+			name:       "metric exists but wrong type",
+			metricID:   "m1",
+			metricType: models.Counter,
+			mockGet: func(metricID string) (*models.Metrics, error) {
+				return &models.Metrics{ID: "m1", MType: models.Gauge, Value: floatPtr(10)}, nil
+			},
+			expectValue:    nil,
+			expectApiError: true,
+			expectNotFound: true,
+		},
+		{
+			name:       "metric does not exist",
+			metricID:   "m2",
+			metricType: models.Gauge,
 			mockGet: func(metricID string) (*models.Metrics, error) {
 				return nil, nil
 			},
@@ -107,8 +121,9 @@ func TestMetricsService_Get(t *testing.T) {
 			expectNotFound: true,
 		},
 		{
-			name:     "repository returns error",
-			metricID: "m3",
+			name:       "repository returns error",
+			metricID:   "m3",
+			metricType: models.Gauge,
 			mockGet: func(metricID string) (*models.Metrics, error) {
 				return nil, errors.New("db error")
 			},
@@ -125,14 +140,16 @@ func TestMetricsService_Get(t *testing.T) {
 			}
 			service := NewMetricsService(mockRepo)
 
-			result, apiErr := service.Get(tt.metricID)
+			result, apiErr := service.Get(tt.metricID, tt.metricType)
 
 			if tt.expectApiError {
 				assert.NotNil(t, apiErr)
 				if tt.expectNotFound {
-					assert.Equal(t, "metric "+tt.metricID+" not found", apiErr.Message)
+					assert.Contains(t, apiErr.Message, "not found")
+					assert.Contains(t, apiErr.Message, tt.metricID)
+					assert.Contains(t, apiErr.Message, tt.metricType)
 				} else {
-					assert.Contains(t, apiErr.Message, "get metric error")
+					assert.Contains(t, apiErr.Message, "not found")
 				}
 			} else {
 				assert.Nil(t, apiErr)
