@@ -44,12 +44,17 @@ func (service *metricsService) Get(metricID string, metricType string) (any, *ap
 	}
 
 	if err != nil {
-		return nil, api_error.Internal("get metric error", err)
-	} else if metric == nil {
-		return nil, api_error.NotFound(fmt.Sprintf("Metric %s with type %s not found", metricID, metricType))
+		return nil, api_error.Internal("Get metric error", err)
 	}
 
-	return metric, nil
+	switch metric.MType {
+	case models.Counter:
+		return metric.Delta, nil
+	case models.Gauge:
+		return metric.Value, nil
+	default:
+		return nil, api_error.BadRequest(fmt.Sprintf("Unknown metric type: %s", metricType))
+	}
 }
 
 func (service *metricsService) Save(id string, metricType string, rawValue string) *api_error.ApiError {

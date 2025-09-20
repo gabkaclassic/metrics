@@ -88,13 +88,13 @@ func TestMetricsService_Get(t *testing.T) {
 		expectNotFound bool
 	}{
 		{
-			name:       "metric exists with correct type",
+			name:       "metric exists with correct type (gauge)",
 			metricID:   "m1",
 			metricType: models.Gauge,
 			mockGet: func(metricID string) (*models.Metrics, error) {
 				return &models.Metrics{ID: "m1", MType: models.Gauge, Value: floatPtr(10)}, nil
 			},
-			expectValue:    &models.Metrics{ID: "m1", MType: models.Gauge, Value: floatPtr(10)},
+			expectValue:    floatPtr(10),
 			expectApiError: false,
 			expectNotFound: false,
 		},
@@ -131,6 +131,17 @@ func TestMetricsService_Get(t *testing.T) {
 			expectApiError: true,
 			expectNotFound: false,
 		},
+		{
+			name:       "metric exists with correct type (counter)",
+			metricID:   "m4",
+			metricType: models.Counter,
+			mockGet: func(metricID string) (*models.Metrics, error) {
+				return &models.Metrics{ID: "m4", MType: models.Counter, Delta: intPtr(42)}, nil
+			},
+			expectValue:    intPtr(42),
+			expectApiError: false,
+			expectNotFound: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -157,6 +168,10 @@ func TestMetricsService_Get(t *testing.T) {
 			}
 		})
 	}
+}
+
+func intPtr(value int64) *int64 {
+	return &value
 }
 
 func TestMetricsService_Save(t *testing.T) {
