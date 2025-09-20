@@ -56,11 +56,11 @@ func ParseServerConfig() *Server {
 func ParseAgentConfig() *Agent {
 	var cfg Agent
 
-	pollInterval := flag.Duration("p", 2*time.Second, "Metrics polling interval")
-	reportInterval := flag.Duration("r", 10*time.Second, "Metrics reporting interval")
+	pollInterval := flag.Uint("p", 2, "Metrics polling interval (seconds)")
+	reportInterval := flag.Uint("r", 10, "Metrics reporting interval (seconds)")
 	serverAddress := flag.String("a", "http://0.0.0.0:8080/update", "Server HTTP base URL")
 	retries := flag.Int("report-retries", 3, "Max update metrics retries")
-	timeout := flag.Duration("report-timeout", 3*time.Second, "Metrics update timeout")
+	timeout := flag.Uint("report-timeout", 3, "Metrics update timeout (seconds)")
 
 	// Logging
 	logLevel := flag.String("log-level", "info", "Logging level")
@@ -70,11 +70,11 @@ func ParseAgentConfig() *Agent {
 
 	flag.Parse()
 
-	cfg.PollInterval = *pollInterval
-	cfg.ReportInterval = *reportInterval
+	cfg.PollInterval = time.Duration(*pollInterval) * time.Second
+	cfg.ReportInterval = time.Duration(*reportInterval) * time.Second
 	cfg.Client.BaseUrl = *serverAddress
 	cfg.Client.Retries = *retries
-	cfg.Client.Timeout = *timeout
+	cfg.Client.Timeout = time.Duration(*timeout) * time.Second
 	cfg.Log = Log{
 		Level:   *logLevel,
 		File:    *logFile,
