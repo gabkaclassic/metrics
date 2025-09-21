@@ -91,12 +91,12 @@ func (m *mockHTTPClient) Delete(url string, opts *httpclient.RequestOptions) (*h
 func TestMetricsAgent_Report(t *testing.T) {
 	tests := []struct {
 		name       string
-		clientFunc func() httpclient.HttpClient
+		clientFunc func() httpclient.HTTPClient
 		wantErr    bool
 	}{
 		{
 			name: "success",
-			clientFunc: func() httpclient.HttpClient {
+			clientFunc: func() httpclient.HTTPClient {
 				return &mockHTTPClient{
 					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 						return &http.Response{
@@ -110,7 +110,7 @@ func TestMetricsAgent_Report(t *testing.T) {
 		},
 		{
 			name: "error",
-			clientFunc: func() httpclient.HttpClient {
+			clientFunc: func() httpclient.HTTPClient {
 				return &mockHTTPClient{
 					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 						return nil, errors.New("network error")
@@ -121,7 +121,7 @@ func TestMetricsAgent_Report(t *testing.T) {
 		},
 		{
 			name: "nil response",
-			clientFunc: func() httpclient.HttpClient {
+			clientFunc: func() httpclient.HTTPClient {
 				return &mockHTTPClient{
 					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 						return nil, nil

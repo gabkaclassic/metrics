@@ -6,9 +6,10 @@ import (
 	"runtime"
 	"sync"
 
+	"log/slog"
+
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
-	"log/slog"
 )
 
 type Agent interface {
@@ -20,11 +21,11 @@ type MetricsAgent struct {
 	Agent
 	stats   *runtime.MemStats
 	mu      sync.RWMutex
-	client  httpclient.HttpClient
+	client  httpclient.HTTPClient
 	metrics []metric.Metric
 }
 
-func NewAgent(client httpclient.HttpClient, stats *runtime.MemStats) *MetricsAgent {
+func NewAgent(client httpclient.HTTPClient, stats *runtime.MemStats) *MetricsAgent {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},

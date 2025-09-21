@@ -24,7 +24,7 @@ type Method string
 type Headers map[string]string
 type Params map[string]string
 
-type HttpClient interface {
+type HTTPClient interface {
 	Get(url string, opts *RequestOptions) (*http.Response, error)
 	Post(url string, opts *RequestOptions) (*http.Response, error)
 	Put(url string, opts *RequestOptions) (*http.Response, error)
