@@ -12,7 +12,7 @@ func TestNew(t *testing.T) {
 		name     string
 		options  []Option
 		wantAddr string
-		wantType interface{}
+		wantType any
 	}{
 		{
 			name:     "default options",
