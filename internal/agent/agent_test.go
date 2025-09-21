@@ -68,23 +68,23 @@ func TestMetricsAgent_Poll(t *testing.T) {
 	}
 }
 
-type mockHttpClient struct {
+type mockHTTPClient struct {
 	postFunc func(url string, opts *httpclient.RequestOptions) (*http.Response, error)
 }
 
-func (m *mockHttpClient) Get(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+func (m *mockHTTPClient) Get(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
-func (m *mockHttpClient) Post(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+func (m *mockHTTPClient) Post(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	return m.postFunc(url, opts)
 }
-func (m *mockHttpClient) Put(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+func (m *mockHTTPClient) Put(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
-func (m *mockHttpClient) Patch(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+func (m *mockHTTPClient) Patch(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
-func (m *mockHttpClient) Delete(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
+func (m *mockHTTPClient) Delete(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 	panic("not implemented")
 }
 
@@ -97,7 +97,7 @@ func TestMetricsAgent_Report(t *testing.T) {
 		{
 			name: "success",
 			clientFunc: func() httpclient.HttpClient {
-				return &mockHttpClient{
+				return &mockHTTPClient{
 					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 						return &http.Response{
 							StatusCode: 200,
@@ -111,7 +111,7 @@ func TestMetricsAgent_Report(t *testing.T) {
 		{
 			name: "error",
 			clientFunc: func() httpclient.HttpClient {
-				return &mockHttpClient{
+				return &mockHTTPClient{
 					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 						return nil, errors.New("network error")
 					},
@@ -122,7 +122,7 @@ func TestMetricsAgent_Report(t *testing.T) {
 		{
 			name: "nil response",
 			clientFunc: func() httpclient.HttpClient {
-				return &mockHttpClient{
+				return &mockHTTPClient{
 					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
 						return nil, nil
 					},
