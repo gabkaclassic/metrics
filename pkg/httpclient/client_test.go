@@ -2,13 +2,14 @@ package httpclient
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewClient(t *testing.T) {
@@ -39,12 +40,12 @@ func TestNewClient(t *testing.T) {
 			options: []Option{
 				func(c *Client) { c.maxRetries = 10 },
 				func(c *Client) { c.timeout = 5 * time.Second },
-				func(c *Client) { c.baseUrl = "http://example.com" },
+				func(c *Client) { c.baseURL = "http://example.com" },
 			},
 			check: func(t *testing.T, c *Client) {
 				assert.Equal(t, 10, c.maxRetries)
 				assert.Equal(t, 5*time.Second, c.timeout)
-				assert.Equal(t, "http://example.com", c.baseUrl)
+				assert.Equal(t, "http://example.com", c.baseURL)
 			},
 		},
 	}
@@ -286,7 +287,7 @@ func TestClient_Get(t *testing.T) {
 			}
 
 			c := &Client{
-				baseUrl:        base,
+				baseURL:        base,
 				client:         http.Client{Timeout: time.Second},
 				headers:        nil,
 				maxRetries:     0,
@@ -416,7 +417,7 @@ func TestClient_Post(t *testing.T) {
 			}
 
 			c := &Client{
-				baseUrl:        base,
+				baseURL:        base,
 				client:         http.Client{Timeout: time.Second},
 				headers:        nil,
 				maxRetries:     tt.maxRetries,
@@ -545,7 +546,7 @@ func TestClient_Put(t *testing.T) {
 			}
 
 			c := &Client{
-				baseUrl:        base,
+				baseURL:        base,
 				client:         http.Client{Timeout: time.Second},
 				headers:        nil,
 				maxRetries:     tt.maxRetries,
@@ -674,7 +675,7 @@ func TestClient_Patch(t *testing.T) {
 			}
 
 			c := &Client{
-				baseUrl:        base,
+				baseURL:        base,
 				client:         http.Client{Timeout: time.Second},
 				headers:        nil,
 				maxRetries:     tt.maxRetries,
@@ -801,7 +802,7 @@ func TestClient_Delete(t *testing.T) {
 			}
 
 			c := &Client{
-				baseUrl:        base,
+				baseURL:        base,
 				client:         http.Client{Timeout: time.Second},
 				headers:        nil,
 				maxRetries:     tt.maxRetries,

@@ -6,7 +6,7 @@ type Option func(*Client)
 
 func BaseURL(url string) Option {
 	return func(c *Client) {
-		c.baseUrl = url
+		c.baseURL = url
 	}
 }
 

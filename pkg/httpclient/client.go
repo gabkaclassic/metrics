@@ -33,7 +33,7 @@ type HTTPClient interface {
 }
 
 type Client struct {
-	baseUrl        string
+	baseURL        string
 	responseFilter ResponseFilter
 	maxRetries     int
 	delay          DelayGenerator
@@ -122,21 +122,21 @@ func (c *Client) do(url string, method string, opts *RequestOptions) (*http.Resp
 }
 
 func (c *Client) Get(url string, opts *RequestOptions) (*http.Response, error) {
-	return c.do(c.baseUrl+url, http.MethodGet, opts)
+	return c.do(c.baseURL+url, http.MethodGet, opts)
 }
 
 func (c *Client) Post(url string, opts *RequestOptions) (*http.Response, error) {
-	return c.do(c.baseUrl+url, http.MethodPost, opts)
+	return c.do(c.baseURL+url, http.MethodPost, opts)
 }
 
 func (c *Client) Put(url string, opts *RequestOptions) (*http.Response, error) {
-	return c.do(c.baseUrl+url, http.MethodPut, opts)
+	return c.do(c.baseURL+url, http.MethodPut, opts)
 }
 
 func (c *Client) Patch(url string, opts *RequestOptions) (*http.Response, error) {
-	return c.do(c.baseUrl+url, http.MethodPatch, opts)
+	return c.do(c.baseURL+url, http.MethodPatch, opts)
 }
 
 func (c *Client) Delete(url string, opts *RequestOptions) (*http.Response, error) {
-	return c.do(c.baseUrl+url, http.MethodDelete, opts)
+	return c.do(c.baseURL+url, http.MethodDelete, opts)
 }
