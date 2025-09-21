@@ -219,6 +219,7 @@ func TestClient_do(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
 			assert.Equal(t, tt.wantStatus, resp.StatusCode)
+			defer resp.Body.Close()
 		})
 	}
 }
@@ -307,6 +308,7 @@ func TestClient_Get(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
+				defer resp.Body.Close()
 				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
@@ -435,6 +437,7 @@ func TestClient_Post(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
+				defer resp.Body.Close()
 				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
@@ -563,6 +566,7 @@ func TestClient_Put(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
+				defer resp.Body.Close()
 				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
@@ -691,6 +695,7 @@ func TestClient_Patch(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
+				defer resp.Body.Close()
 				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
@@ -817,6 +822,7 @@ func TestClient_Delete(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, resp)
+				defer resp.Body.Close()
 				assert.Equal(t, tt.expectStatus, resp.StatusCode)
 			}
 		})
