@@ -19,7 +19,7 @@ type (
 		Log            Log
 	}
 	Client struct {
-		BaseUrl string
+		BaseURL string
 		Timeout time.Duration
 		Retries int
 	}
@@ -85,7 +85,7 @@ func ParseAgentConfig() *Agent {
 
 	cfg.PollInterval = time.Duration(*pollInterval) * time.Second
 	cfg.ReportInterval = time.Duration(*reportInterval) * time.Second
-	cfg.Client.BaseUrl = ensureURL(*serverAddress)
+	cfg.Client.BaseURL = ensureURL(*serverAddress)
 	cfg.Client.Retries = *retries
 	cfg.Client.Timeout = time.Duration(*timeout) * time.Second
 	cfg.Log = Log{

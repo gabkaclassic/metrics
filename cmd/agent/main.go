@@ -20,7 +20,7 @@ func main() {
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
 	client := httpclient.NewClient(
-		httpclient.BaseURL(cfg.Client.BaseUrl),
+		httpclient.BaseURL(cfg.Client.BaseURL),
 		httpclient.Timeout(cfg.Client.Timeout),
 		httpclient.MaxRetries(cfg.Client.Retries),
 	)

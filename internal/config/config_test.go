@@ -134,7 +134,7 @@ func TestParseAgentConfig(t *testing.T) {
 			wantPoll:   5 * time.Second,
 			wantReport: 15 * time.Second,
 			wantClient: Client{
-				BaseUrl: "http://localhost:8080/update",
+				BaseURL: "http://localhost:8080/update",
 				Retries: 5,
 				Timeout: 4 * time.Second,
 			},
@@ -151,7 +151,7 @@ func TestParseAgentConfig(t *testing.T) {
 			wantPoll:   2 * time.Second,
 			wantReport: 10 * time.Second,
 			wantClient: Client{
-				BaseUrl: "http://localhost:8080",
+				BaseURL: "http://localhost:8080",
 				Retries: 3,
 				Timeout: 3 * time.Second,
 			},
