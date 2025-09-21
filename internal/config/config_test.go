@@ -13,6 +13,52 @@ func resetFlags() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 }
 
+func TestEnsureURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "already has http scheme",
+			input:    "http://localhost:8080",
+			expected: "http://localhost:8080",
+		},
+		{
+			name:     "already has https scheme",
+			input:    "https://example.com:443",
+			expected: "https://example.com:443",
+		},
+		{
+			name:     "without scheme, add http",
+			input:    "localhost:8080",
+			expected: "http://localhost:8080",
+		},
+		{
+			name:     "hostname without port",
+			input:    "example.com",
+			expected: "http://example.com",
+		},
+		{
+			name:     "invalid url",
+			input:    "http://[::1:8080",
+			expected: "http://[::1:8080",
+		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "http:",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ensureURL(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
 func TestParseServerConfig(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -105,7 +151,7 @@ func TestParseAgentConfig(t *testing.T) {
 			wantPoll:   2 * time.Second,
 			wantReport: 10 * time.Second,
 			wantClient: Client{
-				BaseUrl: "localhost:8080",
+				BaseUrl: "http://localhost:8080",
 				Retries: 3,
 				Timeout: 3 * time.Second,
 			},

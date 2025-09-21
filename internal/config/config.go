@@ -2,6 +2,8 @@ package config
 
 import (
 	"flag"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -28,6 +30,17 @@ type (
 		JSON    bool
 	}
 )
+
+func ensureURL(addr string) string {
+	if !strings.Contains(addr, "://") {
+		addr = "http://" + addr
+	}
+	u, err := url.Parse(addr)
+	if err != nil {
+		return addr
+	}
+	return u.String()
+}
 
 func ParseServerConfig() *Server {
 	var cfg Server
@@ -58,7 +71,7 @@ func ParseAgentConfig() *Agent {
 
 	pollInterval := flag.Uint("p", 2, "Metrics polling interval (seconds)")
 	reportInterval := flag.Uint("r", 10, "Metrics reporting interval (seconds)")
-	serverAddress := flag.String("a", "localhost:8080", "Server HTTP base URL")
+	serverAddress := flag.String("a", "http://localhost:8080", "Server HTTP base URL")
 	retries := flag.Int("report-retries", 3, "Max update metrics retries")
 	timeout := flag.Uint("report-timeout", 3, "Metrics update timeout (seconds)")
 
@@ -72,7 +85,7 @@ func ParseAgentConfig() *Agent {
 
 	cfg.PollInterval = time.Duration(*pollInterval) * time.Second
 	cfg.ReportInterval = time.Duration(*reportInterval) * time.Second
-	cfg.Client.BaseUrl = *serverAddress
+	cfg.Client.BaseUrl = ensureURL(*serverAddress)
 	cfg.Client.Retries = *retries
 	cfg.Client.Timeout = time.Duration(*timeout) * time.Second
 	cfg.Log = Log{
