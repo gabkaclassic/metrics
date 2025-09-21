@@ -65,7 +65,7 @@ func (agent *MetricsAgent) Report() error {
 		go func(metric metric.Metric) {
 			defer wg.Done()
 
-			url := fmt.Sprintf("/%s/%s/%v", metric.Type(), metric.Name(), metric.Value())
+			url := fmt.Sprintf("/update/%s/%s/%v", metric.Type(), metric.Name(), metric.Value())
 
 			resp, err := agent.client.Post(url, &httpclient.RequestOptions{})
 
