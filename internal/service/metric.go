@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strconv"
 
-	api_error "github.com/gabkaclassic/metrics/internal/error"
+	api "github.com/gabkaclassic/metrics/internal/error"
 	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/repository"
 )
 
 type MetricsService interface {
-	Get(metricID string, metricType string) (any, *api_error.ApiError)
-	Save(id string, metricType string, rawValue string) *api_error.ApiError
+	Get(metricID string, metricType string) (any, *api.ApiError)
+	Save(id string, metricType string, rawValue string) *api.ApiError
 	GetAll() *map[string]any
 }
 
@@ -35,16 +35,16 @@ func (service *metricsService) GetAll() *map[string]any {
 	return service.repository.GetAll()
 }
 
-func (service *metricsService) Get(metricID string, metricType string) (any, *api_error.ApiError) {
+func (service *metricsService) Get(metricID string, metricType string) (any, *api.ApiError) {
 
 	metric, err := service.repository.Get(metricID)
 
 	if metric == nil || metric.MType != metricType {
-		return nil, api_error.NotFound(fmt.Sprintf("Metric %s with type %s not found", metricID, metricType))
+		return nil, api.NotFound(fmt.Sprintf("Metric %s with type %s not found", metricID, metricType))
 	}
 
 	if err != nil {
-		return nil, api_error.Internal("Get metric error", err)
+		return nil, api.Internal("Get metric error", err)
 	}
 
 	switch metric.MType {
@@ -53,11 +53,11 @@ func (service *metricsService) Get(metricID string, metricType string) (any, *ap
 	case models.Gauge:
 		return metric.Value, nil
 	default:
-		return nil, api_error.BadRequest(fmt.Sprintf("Unknown metric type: %s", metricType))
+		return nil, api.BadRequest(fmt.Sprintf("Unknown metric type: %s", metricType))
 	}
 }
 
-func (service *metricsService) Save(id string, metricType string, rawValue string) *api_error.ApiError {
+func (service *metricsService) Save(id string, metricType string, rawValue string) *api.ApiError {
 
 	switch metricType {
 	case models.Counter:
@@ -68,7 +68,7 @@ func (service *metricsService) Save(id string, metricType string, rawValue strin
 				Delta: &delta,
 			})
 		} else {
-			return api_error.BadRequest(fmt.Sprintf("invalid metric value: %s", rawValue))
+			return api.BadRequest(fmt.Sprintf("invalid metric value: %s", rawValue))
 		}
 	case models.Gauge:
 		if value, err := strconv.ParseFloat(rawValue, 64); err == nil {
@@ -78,10 +78,10 @@ func (service *metricsService) Save(id string, metricType string, rawValue strin
 				Value: &value,
 			})
 		} else {
-			return api_error.BadRequest(fmt.Sprintf("invalid metric value: %s", rawValue))
+			return api.BadRequest(fmt.Sprintf("invalid metric value: %s", rawValue))
 		}
 	default:
-		return api_error.BadRequest(fmt.Sprintf("invalid metric type: %s", metricType))
+		return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metricType))
 	}
 
 	return nil

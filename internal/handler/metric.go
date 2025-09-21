@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	api_error "github.com/gabkaclassic/metrics/internal/error"
+	api "github.com/gabkaclassic/metrics/internal/error"
 	"github.com/gabkaclassic/metrics/internal/service"
 )
 
@@ -35,7 +35,7 @@ func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 	err := handler.service.Save(metricID, metricType, metricValue)
 
 	if err != nil {
-		api_error.RespondError(w, err)
+		api.RespondError(w, err)
 		return
 	}
 }
@@ -48,7 +48,7 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	value, err := handler.service.Get(metricID, metricType)
 
 	if err != nil {
-		api_error.RespondError(w, err)
+		api.RespondError(w, err)
 		return
 	}
 
@@ -58,9 +58,9 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	metrics := handler.service.GetAll()
 	if metrics == nil {
-		api_error.RespondError(
+		api.RespondError(
 			w,
-			api_error.NotFound("Metrics not found"),
+			api.NotFound("Metrics not found"),
 		)
 		return
 	}

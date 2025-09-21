@@ -1,31 +1,33 @@
 package handler
 
 import (
-	"github.com/gabkaclassic/metrics/internal/model"
-	"github.com/gabkaclassic/metrics/internal/service"
 	"net/http"
 	"net/http/httptest"
 
-	api_error "github.com/gabkaclassic/metrics/internal/error"
-	"github.com/stretchr/testify/assert"
+	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/internal/service"
+
 	"io"
 	"testing"
+
+	api "github.com/gabkaclassic/metrics/internal/error"
+	"github.com/stretchr/testify/assert"
 )
 
 type MockMetricsService struct {
-	SaveFunc   func(id, metricType, rawValue string) *api_error.ApiError
-	GetFunc    func(metricID string, metricType string) (any, *api_error.ApiError)
+	SaveFunc   func(id, metricType, rawValue string) *api.ApiError
+	GetFunc    func(metricID string, metricType string) (any, *api.ApiError)
 	GetAllFunc func() *map[string]any
 }
 
-func (m *MockMetricsService) Save(id, metricType, rawValue string) *api_error.ApiError {
+func (m *MockMetricsService) Save(id, metricType, rawValue string) *api.ApiError {
 	if m.SaveFunc != nil {
 		return m.SaveFunc(id, metricType, rawValue)
 	}
 	return nil
 }
 
-func (m *MockMetricsService) Get(metricID string, metricType string) (any, *api_error.ApiError) {
+func (m *MockMetricsService) Get(metricID string, metricType string) (any, *api.ApiError) {
 	if m.GetFunc != nil {
 		return m.GetFunc(metricID, metricType)
 	}
@@ -79,7 +81,7 @@ func TestMetricsHandler_Save(t *testing.T) {
 		name           string
 		method         string
 		pathVals       map[string]string
-		mockSave       func(id, metricType, rawValue string) *api_error.ApiError
+		mockSave       func(id, metricType, rawValue string) *api.ApiError
 		expectStatus   int
 		expectErrorMsg string
 	}{
@@ -91,7 +93,7 @@ func TestMetricsHandler_Save(t *testing.T) {
 				"type":  models.Counter,
 				"value": "10",
 			},
-			mockSave: func(id, metricType, rawValue string) *api_error.ApiError {
+			mockSave: func(id, metricType, rawValue string) *api.ApiError {
 				assert.Equal(t, "m1", id)
 				assert.Equal(t, models.Counter, metricType)
 				assert.Equal(t, "10", rawValue)
@@ -107,8 +109,8 @@ func TestMetricsHandler_Save(t *testing.T) {
 				"type":  models.Gauge,
 				"value": "abc",
 			},
-			mockSave: func(id, metricType, rawValue string) *api_error.ApiError {
-				return api_error.BadRequest("invalid metric value")
+			mockSave: func(id, metricType, rawValue string) *api.ApiError {
+				return api.BadRequest("invalid metric value")
 			},
 			expectStatus:   http.StatusBadRequest,
 			expectErrorMsg: "invalid metric value",
@@ -143,7 +145,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 		name           string
 		method         string
 		pathVals       map[string]string
-		mockGet        func(metricID, metricType string) (any, *api_error.ApiError)
+		mockGet        func(metricID, metricType string) (any, *api.ApiError)
 		expectStatus   int
 		expectBody     *string
 		expectErrorMsg string
@@ -155,7 +157,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 				"id":   "m1",
 				"type": models.Gauge,
 			},
-			mockGet: func(metricID, metricType string) (any, *api_error.ApiError) {
+			mockGet: func(metricID, metricType string) (any, *api.ApiError) {
 				assert.Equal(t, "m1", metricID)
 				assert.Equal(t, models.Gauge, metricType)
 				val := 42.0
@@ -171,7 +173,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 				"id":   "c1",
 				"type": models.Counter,
 			},
-			mockGet: func(metricID, metricType string) (any, *api_error.ApiError) {
+			mockGet: func(metricID, metricType string) (any, *api.ApiError) {
 				assert.Equal(t, "c1", metricID)
 				assert.Equal(t, models.Counter, metricType)
 				val := int64(7)
@@ -187,8 +189,8 @@ func TestMetricsHandler_Get(t *testing.T) {
 				"id":   "m2",
 				"type": models.Gauge,
 			},
-			mockGet: func(metricID, metricType string) (any, *api_error.ApiError) {
-				return nil, api_error.NotFound("metric m2 not found")
+			mockGet: func(metricID, metricType string) (any, *api.ApiError) {
+				return nil, api.NotFound("metric m2 not found")
 			},
 			expectStatus:   http.StatusNotFound,
 			expectErrorMsg: "metric m2 not found",
