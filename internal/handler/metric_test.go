@@ -15,19 +15,19 @@ import (
 )
 
 type MockMetricsService struct {
-	SaveFunc   func(id, metricType, rawValue string) *api.ApiError
-	GetFunc    func(metricID string, metricType string) (any, *api.ApiError)
+	SaveFunc   func(id, metricType, rawValue string) *api.APIError
+	GetFunc    func(metricID string, metricType string) (any, *api.APIError)
 	GetAllFunc func() *map[string]any
 }
 
-func (m *MockMetricsService) Save(id, metricType, rawValue string) *api.ApiError {
+func (m *MockMetricsService) Save(id, metricType, rawValue string) *api.APIError {
 	if m.SaveFunc != nil {
 		return m.SaveFunc(id, metricType, rawValue)
 	}
 	return nil
 }
 
-func (m *MockMetricsService) Get(metricID string, metricType string) (any, *api.ApiError) {
+func (m *MockMetricsService) Get(metricID string, metricType string) (any, *api.APIError) {
 	if m.GetFunc != nil {
 		return m.GetFunc(metricID, metricType)
 	}
@@ -81,7 +81,7 @@ func TestMetricsHandler_Save(t *testing.T) {
 		name           string
 		method         string
 		pathVals       map[string]string
-		mockSave       func(id, metricType, rawValue string) *api.ApiError
+		mockSave       func(id, metricType, rawValue string) *api.APIError
 		expectStatus   int
 		expectErrorMsg string
 	}{
@@ -93,7 +93,7 @@ func TestMetricsHandler_Save(t *testing.T) {
 				"type":  models.Counter,
 				"value": "10",
 			},
-			mockSave: func(id, metricType, rawValue string) *api.ApiError {
+			mockSave: func(id, metricType, rawValue string) *api.APIError {
 				assert.Equal(t, "m1", id)
 				assert.Equal(t, models.Counter, metricType)
 				assert.Equal(t, "10", rawValue)
@@ -109,7 +109,7 @@ func TestMetricsHandler_Save(t *testing.T) {
 				"type":  models.Gauge,
 				"value": "abc",
 			},
-			mockSave: func(id, metricType, rawValue string) *api.ApiError {
+			mockSave: func(id, metricType, rawValue string) *api.APIError {
 				return api.BadRequest("invalid metric value")
 			},
 			expectStatus:   http.StatusBadRequest,
@@ -145,7 +145,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 		name           string
 		method         string
 		pathVals       map[string]string
-		mockGet        func(metricID, metricType string) (any, *api.ApiError)
+		mockGet        func(metricID, metricType string) (any, *api.APIError)
 		expectStatus   int
 		expectBody     *string
 		expectErrorMsg string
@@ -157,7 +157,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 				"id":   "m1",
 				"type": models.Gauge,
 			},
-			mockGet: func(metricID, metricType string) (any, *api.ApiError) {
+			mockGet: func(metricID, metricType string) (any, *api.APIError) {
 				assert.Equal(t, "m1", metricID)
 				assert.Equal(t, models.Gauge, metricType)
 				val := 42.0
@@ -173,7 +173,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 				"id":   "c1",
 				"type": models.Counter,
 			},
-			mockGet: func(metricID, metricType string) (any, *api.ApiError) {
+			mockGet: func(metricID, metricType string) (any, *api.APIError) {
 				assert.Equal(t, "c1", metricID)
 				assert.Equal(t, models.Counter, metricType)
 				val := int64(7)
@@ -189,7 +189,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 				"id":   "m2",
 				"type": models.Gauge,
 			},
-			mockGet: func(metricID, metricType string) (any, *api.ApiError) {
+			mockGet: func(metricID, metricType string) (any, *api.APIError) {
 				return nil, api.NotFound("metric m2 not found")
 			},
 			expectStatus:   http.StatusNotFound,
@@ -276,10 +276,6 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 			assert.Contains(t, string(body), tt.expectedBody)
 		})
 	}
-}
-
-func floatPtr(value float64) *float64 {
-	return &value
 }
 
 func strPtr(value string) *string {

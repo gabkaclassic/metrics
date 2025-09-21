@@ -17,8 +17,8 @@ func TestRespondError(t *testing.T) {
 		wantBody string
 	}{
 		{
-			name:     "ApiError",
-			err:      &ApiError{Code: 400, Message: "bad request"},
+			name:     "APIError",
+			err:      &APIError{Code: 400, Message: "bad request"},
 			wantCode: 400,
 			wantBody: "bad request",
 		},

@@ -2,10 +2,11 @@ package service
 
 import (
 	"errors"
-	"github.com/gabkaclassic/metrics/internal/model"
+	"testing"
+
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/repository"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type MockMetricsRepository struct {
@@ -84,7 +85,7 @@ func TestMetricsService_Get(t *testing.T) {
 		metricType     string
 		mockGet        func(metricID string) (*models.Metrics, error)
 		expectValue    any
-		expectApiError bool
+		expectAPIError bool
 		expectNotFound bool
 	}{
 		{
@@ -95,7 +96,7 @@ func TestMetricsService_Get(t *testing.T) {
 				return &models.Metrics{ID: "m1", MType: models.Gauge, Value: floatPtr(10)}, nil
 			},
 			expectValue:    floatPtr(10),
-			expectApiError: false,
+			expectAPIError: false,
 			expectNotFound: false,
 		},
 		{
@@ -106,7 +107,7 @@ func TestMetricsService_Get(t *testing.T) {
 				return &models.Metrics{ID: "m1", MType: models.Gauge, Value: floatPtr(10)}, nil
 			},
 			expectValue:    nil,
-			expectApiError: true,
+			expectAPIError: true,
 			expectNotFound: true,
 		},
 		{
@@ -117,7 +118,7 @@ func TestMetricsService_Get(t *testing.T) {
 				return nil, nil
 			},
 			expectValue:    nil,
-			expectApiError: true,
+			expectAPIError: true,
 			expectNotFound: true,
 		},
 		{
@@ -128,7 +129,7 @@ func TestMetricsService_Get(t *testing.T) {
 				return nil, errors.New("db error")
 			},
 			expectValue:    nil,
-			expectApiError: true,
+			expectAPIError: true,
 			expectNotFound: false,
 		},
 		{
@@ -139,7 +140,7 @@ func TestMetricsService_Get(t *testing.T) {
 				return &models.Metrics{ID: "m4", MType: models.Counter, Delta: intPtr(42)}, nil
 			},
 			expectValue:    intPtr(42),
-			expectApiError: false,
+			expectAPIError: false,
 			expectNotFound: false,
 		},
 	}
@@ -153,7 +154,7 @@ func TestMetricsService_Get(t *testing.T) {
 
 			result, apiErr := service.Get(tt.metricID, tt.metricType)
 
-			if tt.expectApiError {
+			if tt.expectAPIError {
 				assert.NotNil(t, apiErr)
 				if tt.expectNotFound {
 					assert.Contains(t, apiErr.Message, "not found")

@@ -4,46 +4,46 @@ import (
 	"net/http"
 )
 
-type ApiError struct {
+type APIError struct {
 	Code    int
 	Message string
 	Err     error
 }
 
-func (e *ApiError) Error() string {
+func (e *APIError) Error() string {
 	return e.Message
 }
 
-func New(code int, message string, err error) *ApiError {
-	return &ApiError{Code: code, Message: message, Err: err}
+func New(code int, message string, err error) *APIError {
+	return &APIError{Code: code, Message: message, Err: err}
 }
 
-func NotAllowed() *ApiError {
-	return &ApiError{Code: http.StatusMethodNotAllowed, Message: "Method is not allowed"}
+func NotAllowed() *APIError {
+	return &APIError{Code: http.StatusMethodNotAllowed, Message: "Method is not allowed"}
 }
 
-func NotFound(message string) *ApiError {
-	return &ApiError{Code: http.StatusNotFound, Message: message}
+func NotFound(message string) *APIError {
+	return &APIError{Code: http.StatusNotFound, Message: message}
 }
 
-func BadRequest(message string) *ApiError {
-	return &ApiError{Code: http.StatusBadRequest, Message: message}
+func BadRequest(message string) *APIError {
+	return &APIError{Code: http.StatusBadRequest, Message: message}
 }
 
-func Internal(message string, err error) *ApiError {
-	return &ApiError{Code: http.StatusInternalServerError, Message: message, Err: err}
+func Internal(message string, err error) *APIError {
+	return &APIError{Code: http.StatusInternalServerError, Message: message, Err: err}
 }
 
-func Forbidden(message string) *ApiError {
-	return &ApiError{Code: http.StatusForbidden, Message: message}
+func Forbidden(message string) *APIError {
+	return &APIError{Code: http.StatusForbidden, Message: message}
 }
 
-func Unauthorized(message string) *ApiError {
-	return &ApiError{Code: http.StatusUnauthorized, Message: message}
+func Unauthorized(message string) *APIError {
+	return &APIError{Code: http.StatusUnauthorized, Message: message}
 }
 
 func RespondError(w http.ResponseWriter, err error) {
-	apiErr, ok := err.(*ApiError)
+	apiErr, ok := err.(*APIError)
 	if !ok {
 		apiErr = Internal("Internal server error", err)
 	}

@@ -11,8 +11,8 @@ import (
 )
 
 type MetricsService interface {
-	Get(metricID string, metricType string) (any, *api.ApiError)
-	Save(id string, metricType string, rawValue string) *api.ApiError
+	Get(metricID string, metricType string) (any, *api.APIError)
+	Save(id string, metricType string, rawValue string) *api.APIError
 	GetAll() *map[string]any
 }
 
@@ -35,7 +35,7 @@ func (service *metricsService) GetAll() *map[string]any {
 	return service.repository.GetAll()
 }
 
-func (service *metricsService) Get(metricID string, metricType string) (any, *api.ApiError) {
+func (service *metricsService) Get(metricID string, metricType string) (any, *api.APIError) {
 
 	metric, err := service.repository.Get(metricID)
 
@@ -57,7 +57,7 @@ func (service *metricsService) Get(metricID string, metricType string) (any, *ap
 	}
 }
 
-func (service *metricsService) Save(id string, metricType string, rawValue string) *api.ApiError {
+func (service *metricsService) Save(id string, metricType string, rawValue string) *api.APIError {
 
 	switch metricType {
 	case models.Counter:
