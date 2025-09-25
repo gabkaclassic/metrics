@@ -11,10 +11,11 @@ import (
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestNewAgent(t *testing.T) {
-	dummyClient := &httpclient.Client{}
+	dummyClient := httpclient.NewMockHTTPClient(t)
 	stats := &runtime.MemStats{}
 
 	agent := NewAgent(dummyClient, stats)
@@ -39,94 +40,60 @@ func TestNewAgent(t *testing.T) {
 	assert.True(t, foundRandomValue)
 }
 
-type mockMetric struct {
-	updated bool
-}
-
-func (m *mockMetric) Update()                 { m.updated = true }
-func (m *mockMetric) Name() string            { return "mock" }
-func (m *mockMetric) Value() any              { return "mock" }
-func (m *mockMetric) Type() metric.MetricType { return metric.GaugeType }
-
 func TestMetricsAgent_Poll(t *testing.T) {
 	stats := &runtime.MemStats{}
+
+	m1 := metric.NewMockMetric(t)
+	m2 := metric.NewMockMetric(t)
+
+	m1.EXPECT().Update().Return()
+	m2.EXPECT().Update().Return()
+
 	agent := &MetricsAgent{
 		stats: stats,
 		metrics: []metric.Metric{
-			&mockMetric{},
-			&mockMetric{},
+			m1,
+			m2,
 		},
 	}
 
 	agent.Poll()
 
-	assert.NotZero(t, agent.stats.Alloc)
-
-	for _, m := range agent.metrics {
-		mock := m.(*mockMetric)
-		assert.True(t, mock.updated)
-	}
+	assert.NotZero(t, stats.Alloc)
 }
-
-type mockHTTPClient struct {
-	postFunc func(url string, opts *httpclient.RequestOptions) (*http.Response, error)
-}
-
-func (m *mockHTTPClient) Get(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-	panic("not implemented")
-}
-func (m *mockHTTPClient) Post(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-	return m.postFunc(url, opts)
-}
-func (m *mockHTTPClient) Put(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-	panic("not implemented")
-}
-func (m *mockHTTPClient) Patch(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-	panic("not implemented")
-}
-func (m *mockHTTPClient) Delete(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-	panic("not implemented")
-}
-
 func TestMetricsAgent_Report(t *testing.T) {
 	tests := []struct {
-		name       string
-		clientFunc func() httpclient.HTTPClient
-		wantErr    bool
+		name    string
+		setup   func(m *httpclient.MockHTTPClient)
+		wantErr bool
 	}{
 		{
 			name: "success",
-			clientFunc: func() httpclient.HTTPClient {
-				return &mockHTTPClient{
-					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-						return &http.Response{
-							StatusCode: 200,
-							Body:       io.NopCloser(bytes.NewBufferString("ok")),
-						}, nil
-					},
-				}
+			setup: func(m *httpclient.MockHTTPClient) {
+				m.EXPECT().
+					Post(mock.Anything, mock.Anything).
+					Return(&http.Response{
+						StatusCode: 200,
+						Body:       io.NopCloser(bytes.NewBufferString("ok")),
+					}, nil)
 			},
 			wantErr: false,
 		},
 		{
 			name: "error",
-			clientFunc: func() httpclient.HTTPClient {
-				return &mockHTTPClient{
-					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-						return nil, errors.New("network error")
-					},
-				}
+			setup: func(m *httpclient.MockHTTPClient) {
+				m.EXPECT().
+					Post(mock.Anything, mock.Anything).
+					Return(nil, errors.New("network error"))
 			},
 			wantErr: true,
 		},
 		{
 			name: "nil response",
-			clientFunc: func() httpclient.HTTPClient {
-				return &mockHTTPClient{
-					postFunc: func(url string, opts *httpclient.RequestOptions) (*http.Response, error) {
-						return nil, nil
-					},
-				}
+			setup: func(m *httpclient.MockHTTPClient) {
+				m.EXPECT().
+					Post(mock.Anything, mock.Anything).
+					Return(nil, nil)
 			},
 			wantErr: true,
 		},
@@ -134,13 +101,11 @@ func TestMetricsAgent_Report(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			agent := &MetricsAgent{
-				client: tt.clientFunc(),
-				stats:  &runtime.MemStats{},
-				metrics: []metric.Metric{
-					&mockMetric{},
-				},
-			}
+			mockClient := httpclient.NewMockHTTPClient(t)
+
+			tt.setup(mockClient)
+
+			agent := NewAgent(mockClient, &runtime.MemStats{})
 
 			err := agent.Report()
 			if tt.wantErr {

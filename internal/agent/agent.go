@@ -20,7 +20,7 @@ type Agent interface {
 type MetricsAgent struct {
 	Agent
 	stats   *runtime.MemStats
-	mu      sync.RWMutex
+	mu      *sync.RWMutex
 	client  httpclient.HTTPClient
 	metrics []metric.Metric
 }
@@ -41,6 +41,7 @@ func NewAgent(client httpclient.HTTPClient, stats *runtime.MemStats) *MetricsAge
 		client:  client,
 		metrics: metrics,
 		stats:   stats,
+		mu:      &sync.RWMutex{},
 	}
 }
 
