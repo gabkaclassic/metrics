@@ -18,3 +18,6 @@ packages:
   github.com/gabkaclassic/metrics/pkg/metric:
     config:
       all: true
+  github.com/gabkaclassic/metrics/internal/repository:
+    config:
+      all: true
