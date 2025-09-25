@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/storage"
@@ -17,6 +18,7 @@ type MetricsRepository interface {
 
 type metricsRepository struct {
 	storage *storage.MemStorage
+	mutex   *sync.RWMutex
 }
 
 func NewMetricsRepository(storage *storage.MemStorage) MetricsRepository {
@@ -27,6 +29,7 @@ func NewMetricsRepository(storage *storage.MemStorage) MetricsRepository {
 
 	return &metricsRepository{
 		storage: storage,
+		mutex:   &sync.RWMutex{},
 	}
 }
 
@@ -58,8 +61,8 @@ func (repository *metricsRepository) Get(metricID string) (*models.Metrics, erro
 }
 
 func (repository *metricsRepository) updateMetric(metric models.Metrics, updateMetricFunction func(metric models.Metrics) error) error {
-	repository.storage.Mutex.Lock()
-	defer repository.storage.Mutex.Unlock()
+	repository.mutex.Lock()
+	defer repository.mutex.Unlock()
 
 	if repository.storage.Metrics == nil {
 		repository.storage.Metrics = make(map[string]models.Metrics)

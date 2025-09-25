@@ -2,11 +2,13 @@ package repository
 
 import (
 	"errors"
+	"sync"
+	"testing"
+
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/storage"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestNewMetricsRepository(t *testing.T) {
@@ -80,7 +82,7 @@ func TestMetricsRepository_Get(t *testing.T) {
 
 func TestMetricsRepository_updateMetric(t *testing.T) {
 	storage := storage.NewMemStorage()
-	repo := &metricsRepository{storage: storage}
+	repo := &metricsRepository{storage: storage, mutex: &sync.RWMutex{}}
 
 	tests := []struct {
 		name        string
@@ -122,44 +124,43 @@ func TestMetricsRepository_updateMetric(t *testing.T) {
 }
 
 func TestMetricsRepository_Add(t *testing.T) {
-	storage := storage.NewMemStorage()
-	repo := &metricsRepository{storage: storage}
-
 	tests := []struct {
 		name           string
-		initialMetrics map[string]models.Metrics
+		initialMetrics []models.Metrics
 		addMetric      models.Metrics
 		expectedMetric models.Metrics
 	}{
 		{
 			name:           "add new metric",
-			initialMetrics: map[string]models.Metrics{},
-			addMetric:      models.Metrics{ID: "m1", Delta: intPtr(5)},
-			expectedMetric: models.Metrics{ID: "m1", Delta: intPtr(5)},
+			initialMetrics: nil,
+			addMetric:      models.Metrics{ID: "m1", Delta: intPtr(5), MType: "counter"},
+			expectedMetric: models.Metrics{ID: "m1", Delta: intPtr(5), MType: "counter"},
 		},
 		{
 			name: "update existing metric",
-			initialMetrics: map[string]models.Metrics{
-				"m2": {ID: "m2", Delta: intPtr(3)},
+			initialMetrics: []models.Metrics{
+				{ID: "m2", Delta: intPtr(3), MType: "counter"},
 			},
-			addMetric:      models.Metrics{ID: "m2", Delta: intPtr(2)},
-			expectedMetric: models.Metrics{ID: "m2", Delta: intPtr(5)},
+			addMetric:      models.Metrics{ID: "m2", Delta: intPtr(2), MType: "counter"},
+			expectedMetric: models.Metrics{ID: "m2", Delta: intPtr(5), MType: "counter"},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage.Mutex.Lock()
-			storage.Metrics = make(map[string]models.Metrics)
-			for k, v := range tt.initialMetrics {
-				storage.Metrics[k] = v
+			memStorage := storage.NewMemStorage()
+			repo := NewMetricsRepository(memStorage)
+
+			for _, m := range tt.initialMetrics {
+				err := repo.Add(m)
+				assert.NoError(t, err)
 			}
-			storage.Mutex.Unlock()
 
 			err := repo.Add(tt.addMetric)
 			assert.NoError(t, err)
 
-			result, _ := repo.Get(tt.addMetric.ID)
+			result, err := repo.Get(tt.addMetric.ID)
+			assert.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, *tt.expectedMetric.Delta, *result.Delta)
 		})
@@ -168,7 +169,7 @@ func TestMetricsRepository_Add(t *testing.T) {
 
 func TestMetricsRepository_Reset(t *testing.T) {
 	storage := storage.NewMemStorage()
-	repo := &metricsRepository{storage: storage}
+	repo := NewMetricsRepository(storage)
 
 	tests := []struct {
 		name           string
@@ -192,12 +193,10 @@ func TestMetricsRepository_Reset(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			storage.Mutex.Lock()
 			storage.Metrics = make(map[string]models.Metrics)
 			for k, v := range tt.initialMetrics {
 				storage.Metrics[k] = v
 			}
-			storage.Mutex.Unlock()
 
 			err := repo.Reset(tt.resetMetric)
 			assert.NoError(t, err)
