@@ -44,36 +44,40 @@ func TestNewMetricsRepository(t *testing.T) {
 }
 
 func TestMetricsRepository_Get(t *testing.T) {
-	storage := storage.NewMemStorage()
-	storage.Metrics["existing"] = models.Metrics{ID: "existing", Value: floatPtr(42)}
-	repo := &metricsRepository{storage: storage}
+	st := storage.NewMemStorage()
+	st.Metrics["existing"] = models.Metrics{ID: "existing", Value: floatPtr(42)}
+
+	repo := NewMetricsRepository(st)
 
 	tests := []struct {
 		name        string
 		metricID    string
 		expectValue *models.Metrics
-		expectNil   bool
+		expectError bool
 	}{
 		{
 			name:        "metric exists",
 			metricID:    "existing",
 			expectValue: &models.Metrics{ID: "existing", Value: floatPtr(42)},
-			expectNil:   false,
+			expectError: false,
 		},
 		{
 			name:        "metric does not exist",
 			metricID:    "missing",
 			expectValue: nil,
-			expectNil:   true,
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, _ := repo.Get(tt.metricID)
-			if tt.expectNil {
+			result, err := repo.Get(tt.metricID)
+
+			if tt.expectError {
+				assert.Error(t, err)
 				assert.Nil(t, result)
 			} else {
+				assert.NoError(t, err)
 				assert.Equal(t, tt.expectValue, result)
 			}
 		})

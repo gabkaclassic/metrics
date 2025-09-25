@@ -2,6 +2,7 @@ package repository
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/gabkaclassic/metrics/internal/model"
@@ -54,7 +55,7 @@ func (repository *metricsRepository) Get(metricID string) (*models.Metrics, erro
 	metric, exists := repository.storage.Metrics[metricID]
 
 	if !exists {
-		return nil, nil
+		return nil, fmt.Errorf("metric %s not found", metricID)
 	}
 
 	return &metric, nil
