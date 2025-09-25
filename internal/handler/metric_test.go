@@ -7,6 +7,7 @@ import (
 	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/service"
 
+	"fmt"
 	"io"
 	"testing"
 
@@ -14,35 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MockMetricsService struct {
-	SaveFunc   func(id, metricType, rawValue string) *api.APIError
-	GetFunc    func(metricID string, metricType string) (any, *api.APIError)
-	GetAllFunc func() *map[string]any
-}
-
-func (m *MockMetricsService) Save(id, metricType, rawValue string) *api.APIError {
-	if m.SaveFunc != nil {
-		return m.SaveFunc(id, metricType, rawValue)
-	}
-	return nil
-}
-
-func (m *MockMetricsService) Get(metricID string, metricType string) (any, *api.APIError) {
-	if m.GetFunc != nil {
-		return m.GetFunc(metricID, metricType)
-	}
-	return nil, nil
-}
-
-func (m *MockMetricsService) GetAll() *map[string]any {
-	if m.GetAllFunc != nil {
-		return m.GetAllFunc()
-	}
-	return nil
-}
-
 func TestNewMetricsHandler(t *testing.T) {
-	var validService service.MetricsService = &MockMetricsService{}
+	validService := service.NewMockMetricsService(t)
 
 	tests := []struct {
 		name        string
@@ -120,11 +94,12 @@ func TestMetricsHandler_Save(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := &MockMetricsService{
-				SaveFunc: tt.mockSave,
-			}
-			handler, err := NewMetricsHandler(mockService)
+			mockService := service.NewMockMetricsService(t)
+			mockService.EXPECT().
+				Save(tt.pathVals["id"], tt.pathVals["type"], tt.pathVals["value"]).
+				RunAndReturn(tt.mockSave)
 
+			handler, err := NewMetricsHandler(mockService)
 			assert.NoError(t, err)
 
 			req := httptest.NewRequest(tt.method, "/", nil)
@@ -202,11 +177,12 @@ func TestMetricsHandler_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := &MockMetricsService{
-				GetFunc: tt.mockGet,
-			}
-			handler, err := NewMetricsHandler(mockService)
+			mockService := service.NewMockMetricsService(t)
+			mockService.EXPECT().
+				Get(tt.pathVals["id"], tt.pathVals["type"]).
+				RunAndReturn(tt.mockGet)
 
+			handler, err := NewMetricsHandler(mockService)
 			assert.NoError(t, err)
 
 			req := httptest.NewRequest(tt.method, "/", nil)
@@ -233,19 +209,16 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 		name           string
 		mockReturn     *map[string]any
 		expectedStatus int
-		expectedBody   string
 	}{
 		{
 			name:           "nil metrics",
 			mockReturn:     nil,
 			expectedStatus: http.StatusNotFound,
-			expectedBody:   "Metrics not found",
 		},
 		{
 			name:           "empty metrics",
 			mockReturn:     &map[string]any{},
 			expectedStatus: http.StatusOK,
-			expectedBody:   "<h1>Metrics</h1>",
 		},
 		{
 			name: "metrics with values",
@@ -254,19 +227,15 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 				"g1": float64(3.14),
 			},
 			expectedStatus: http.StatusOK,
-			expectedBody:   "<td>c1</td><td>10</td>",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := &MockMetricsService{
-				GetAllFunc: func() *map[string]any {
-					return tt.mockReturn
-				},
-			}
-			handler, err := NewMetricsHandler(mockService)
+			mockService := service.NewMockMetricsService(t)
+			mockService.EXPECT().GetAll().Return(tt.mockReturn)
 
+			handler, err := NewMetricsHandler(mockService)
 			assert.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -278,9 +247,18 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 			defer res.Body.Close()
 
 			body, _ := io.ReadAll(res.Body)
-
 			assert.Equal(t, tt.expectedStatus, res.StatusCode)
-			assert.Contains(t, string(body), tt.expectedBody)
+
+			bodyStr := string(body)
+			if tt.mockReturn == nil {
+				assert.Contains(t, bodyStr, "Metrics not found")
+			} else {
+				for id, val := range *tt.mockReturn {
+					assert.Contains(t, bodyStr, id)
+					assert.Contains(t, bodyStr, fmt.Sprintf("%v", val))
+				}
+				assert.Contains(t, bodyStr, "<h1>Metrics</h1>")
+			}
 		})
 	}
 }
