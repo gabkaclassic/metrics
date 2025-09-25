@@ -3,13 +3,36 @@ package handler
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
+	"html/template"
 	"net/http"
-	"strings"
 
 	api "github.com/gabkaclassic/metrics/internal/error"
 	"github.com/gabkaclassic/metrics/internal/service"
 )
+
+type MetricsPageData struct {
+	Metrics map[string]any
+}
+
+var metricsTemplate = template.Must(template.New("metrics").Parse(`
+<html>
+<head>
+	<title>Metrics</title>
+</head>
+<body>
+	<h1>Metrics</h1>
+	<table border="1" cellpadding="5" cellspacing="0">
+		<tr><th>ID</th><th>Value</th></tr>
+		{{range $id, $val := .Metrics}}
+		<tr>
+			<td>{{$id}}</td>
+			<td>{{$val}}</td>
+		</tr>
+		{{end}}
+	</table>
+</body>
+</html>
+`))
 
 type MetricsHandler struct {
 	service service.MetricsService
@@ -65,21 +88,12 @@ func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	builder := strings.Builder{}
-	builder.WriteString("<html><head><title>Metrics</title></head><body>")
-	builder.WriteString("<h1>Metrics</h1>")
-	builder.WriteString("<table border='1' cellpadding='5' cellspacing='0'>")
-	builder.WriteString("<tr><th>ID</th><th>Value</th></tr>")
-
-	for id, val := range *metrics {
-		builder.WriteString("<tr>")
-		builder.WriteString("<td>" + id + "</td>")
-		builder.WriteString("<td>" + fmt.Sprintf("%v", val) + "</td>")
-		builder.WriteString("</tr>")
+	data := MetricsPageData{
+		Metrics: *metrics,
 	}
 
-	builder.WriteString("</table>")
-	builder.WriteString("</body></html>")
-
-	_, _ = w.Write([]byte(builder.String()))
+	if err := metricsTemplate.Execute(w, data); err != nil {
+		http.Error(w, "failed to render template", http.StatusInternalServerError)
+		return
+	}
 }
