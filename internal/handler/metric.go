@@ -15,15 +15,15 @@ type MetricsHandler struct {
 	service service.MetricsService
 }
 
-func NewMetricsHandler(service service.MetricsService) *MetricsHandler {
+func NewMetricsHandler(service service.MetricsService) (*MetricsHandler, error) {
 
 	if service == nil {
-		panic(errors.New("create new metrics handler failed: service is nil"))
+		return nil, errors.New("create new metrics handler failed: service is nil")
 	}
 
 	return &MetricsHandler{
 		service: service,
-	}
+	}, nil
 }
 
 func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {

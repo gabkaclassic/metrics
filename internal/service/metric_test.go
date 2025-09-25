@@ -50,29 +50,30 @@ func TestNewMetricsService(t *testing.T) {
 	tests := []struct {
 		name        string
 		repository  repository.MetricsRepository
-		expectPanic bool
+		expectError bool
 	}{
 		{
 			name:        "valid repository",
 			repository:  mockRepo,
-			expectPanic: false,
+			expectError: false,
 		},
 		{
 			name:        "nil repository",
 			repository:  nil,
-			expectPanic: true,
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expectPanic {
-				assert.Panics(t, func() {
-					NewMetricsService(tt.repository)
-				})
+			svc, err := NewMetricsService(tt.repository)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, svc)
 			} else {
-				service := NewMetricsService(tt.repository)
-				assert.NotNil(t, service)
+				assert.NoError(t, err)
+				assert.NotNil(t, svc)
 			}
 		})
 	}
@@ -150,7 +151,9 @@ func TestMetricsService_Get(t *testing.T) {
 			mockRepo := &MockMetricsRepository{
 				GetFunc: tt.mockGet,
 			}
-			service := NewMetricsService(mockRepo)
+			service, err := NewMetricsService(mockRepo)
+
+			assert.NoError(t, err)
 
 			result, apiErr := service.Get(tt.metricID, tt.metricType)
 
@@ -244,13 +247,15 @@ func TestMetricsService_Save(t *testing.T) {
 				AddFunc:   tt.mockAdd,
 				ResetFunc: tt.mockReset,
 			}
-			service := NewMetricsService(mockRepo)
+			service, err := NewMetricsService(mockRepo)
 
-			err := service.Save(tt.id, tt.metricType, tt.rawValue)
+			assert.NoError(t, err)
+
+			apiErr := service.Save(tt.id, tt.metricType, tt.rawValue)
 
 			if tt.expectError {
-				assert.NotNil(t, err)
-				assert.Contains(t, err.Message, tt.errorContains)
+				assert.NotNil(t, apiErr)
+				assert.Contains(t, apiErr.Message, tt.errorContains)
 			} else {
 				assert.Nil(t, err)
 			}
@@ -295,7 +300,9 @@ func TestMetricsService_GetAll(t *testing.T) {
 				},
 			}
 
-			service := NewMetricsService(mockRepo)
+			service, err := NewMetricsService(mockRepo)
+
+			assert.NoError(t, err)
 
 			result := service.GetAll()
 

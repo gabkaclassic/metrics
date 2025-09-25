@@ -20,15 +20,15 @@ type metricsService struct {
 	repository repository.MetricsRepository
 }
 
-func NewMetricsService(repository repository.MetricsRepository) MetricsService {
+func NewMetricsService(repository repository.MetricsRepository) (MetricsService, error) {
 
 	if repository == nil {
-		panic(errors.New("create new metrics service failed: repository is nil"))
+		return nil, errors.New("create new metrics service failed: repository is nil")
 	}
 
 	return &metricsService{
 		repository: repository,
-	}
+	}, nil
 }
 
 func (service *metricsService) GetAll() *map[string]any {

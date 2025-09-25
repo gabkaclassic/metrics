@@ -15,28 +15,29 @@ func TestNewMetricsRepository(t *testing.T) {
 	tests := []struct {
 		name        string
 		storage     *storage.MemStorage
-		expectPanic bool
+		expectError bool
 	}{
 		{
 			name:        "valid storage",
 			storage:     storage.NewMemStorage(),
-			expectPanic: false,
+			expectError: false,
 		},
 		{
 			name:        "nil storage",
 			storage:     nil,
-			expectPanic: true,
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expectPanic {
-				assert.Panics(t, func() {
-					NewMetricsRepository(tt.storage)
-				})
+			repo, err := NewMetricsRepository(tt.storage)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, repo)
 			} else {
-				repo := NewMetricsRepository(tt.storage)
+				assert.NoError(t, err)
 				assert.NotNil(t, repo)
 			}
 		})
@@ -47,7 +48,9 @@ func TestMetricsRepository_Get(t *testing.T) {
 	st := storage.NewMemStorage()
 	st.Metrics["existing"] = models.Metrics{ID: "existing", Value: floatPtr(42)}
 
-	repo := NewMetricsRepository(st)
+	repo, err := NewMetricsRepository(st)
+
+	assert.NoError(t, err)
 
 	tests := []struct {
 		name        string
@@ -153,14 +156,15 @@ func TestMetricsRepository_Add(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			memStorage := storage.NewMemStorage()
-			repo := NewMetricsRepository(memStorage)
+			repo, err := NewMetricsRepository(memStorage)
+			assert.NoError(t, err)
 
 			for _, m := range tt.initialMetrics {
 				err := repo.Add(m)
 				assert.NoError(t, err)
 			}
 
-			err := repo.Add(tt.addMetric)
+			err = repo.Add(tt.addMetric)
 			assert.NoError(t, err)
 
 			result, err := repo.Get(tt.addMetric.ID)
@@ -173,7 +177,9 @@ func TestMetricsRepository_Add(t *testing.T) {
 
 func TestMetricsRepository_Reset(t *testing.T) {
 	storage := storage.NewMemStorage()
-	repo := NewMetricsRepository(storage)
+	repo, err := NewMetricsRepository(storage)
+
+	assert.NoError(t, err)
 
 	tests := []struct {
 		name           string

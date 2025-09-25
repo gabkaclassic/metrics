@@ -18,7 +18,10 @@ func main() {
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
-	router := setupRouter()
+	router, err := setupRouter()
+
+	panicWithError(err)
+
 	server := httpserver.New(
 		httpserver.Address(cfg.Address),
 		httpserver.Handler(&router),
@@ -26,16 +29,36 @@ func main() {
 	server.Run()
 }
 
-func setupRouter() http.Handler {
+func setupRouter() (http.Handler, error) {
 
 	storage := storage.NewMemStorage()
 
 	// Metrics
-	metricsRepository := repository.NewMetricsRepository(storage)
-	metricsService := service.NewMetricsService(metricsRepository)
-	metricsHandler := handler.NewMetricsHandler(metricsService)
+	metricsRepository, err := repository.NewMetricsRepository(storage)
+
+	if err != nil {
+		return nil, err
+	}
+
+	metricsService, err := service.NewMetricsService(metricsRepository)
+
+	if err != nil {
+		return nil, err
+	}
+
+	metricsHandler, err := handler.NewMetricsHandler(metricsService)
+
+	if err != nil {
+		return nil, err
+	}
 
 	return handler.SetupRouter(&handler.RouterConfiguration{
 		MetricsHandler: metricsHandler,
-	})
+	}), nil
+}
+
+func panicWithError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

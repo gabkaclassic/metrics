@@ -22,16 +22,16 @@ type metricsRepository struct {
 	mutex   *sync.RWMutex
 }
 
-func NewMetricsRepository(storage *storage.MemStorage) MetricsRepository {
+func NewMetricsRepository(storage *storage.MemStorage) (MetricsRepository, error) {
 
 	if storage == nil {
-		panic(errors.New("create new metrics repository failed: storage is nil"))
+		return nil, errors.New("create new metrics repository failed: storage is nil")
 	}
 
 	return &metricsRepository{
 		storage: storage,
 		mutex:   &sync.RWMutex{},
-	}
+	}, nil
 }
 
 func (repository *metricsRepository) GetAll() *map[string]any {

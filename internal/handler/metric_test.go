@@ -47,28 +47,29 @@ func TestNewMetricsHandler(t *testing.T) {
 	tests := []struct {
 		name        string
 		service     service.MetricsService
-		expectPanic bool
+		expectError bool
 	}{
 		{
 			name:        "valid service",
 			service:     validService,
-			expectPanic: false,
+			expectError: false,
 		},
 		{
 			name:        "nil service",
 			service:     nil,
-			expectPanic: true,
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.expectPanic {
-				assert.Panics(t, func() {
-					NewMetricsHandler(tt.service)
-				})
+			handler, err := NewMetricsHandler(tt.service)
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, handler)
 			} else {
-				handler := NewMetricsHandler(tt.service)
+				assert.NoError(t, err)
 				assert.NotNil(t, handler)
 				assert.Equal(t, tt.service, handler.service)
 			}
@@ -122,7 +123,9 @@ func TestMetricsHandler_Save(t *testing.T) {
 			mockService := &MockMetricsService{
 				SaveFunc: tt.mockSave,
 			}
-			handler := NewMetricsHandler(mockService)
+			handler, err := NewMetricsHandler(mockService)
+
+			assert.NoError(t, err)
 
 			req := httptest.NewRequest(tt.method, "/", nil)
 			for k, v := range tt.pathVals {
@@ -202,7 +205,9 @@ func TestMetricsHandler_Get(t *testing.T) {
 			mockService := &MockMetricsService{
 				GetFunc: tt.mockGet,
 			}
-			handler := NewMetricsHandler(mockService)
+			handler, err := NewMetricsHandler(mockService)
+
+			assert.NoError(t, err)
 
 			req := httptest.NewRequest(tt.method, "/", nil)
 			for k, v := range tt.pathVals {
@@ -260,7 +265,9 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 					return tt.mockReturn
 				},
 			}
-			handler := NewMetricsHandler(mockService)
+			handler, err := NewMetricsHandler(mockService)
+
+			assert.NoError(t, err)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			rec := httptest.NewRecorder()
