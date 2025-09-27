@@ -1,0 +1,26 @@
+all: false
+dir: '{{.InterfaceDir}}'
+filename: mocks.go
+force-file-write: true
+formatter: goimports
+include-auto-generated: false
+log-level: info
+structname: '{{.Mock}}{{.InterfaceName}}'
+pkgname: '{{.SrcPackageName}}'
+recursive: false
+require-template-schema-exists: true
+template: testify
+template-schema: '{{.Template}}.schema.json'
+packages:
+  github.com/gabkaclassic/metrics/pkg/httpclient:
+    config:
+      all: true
+  github.com/gabkaclassic/metrics/pkg/metric:
+    config:
+      all: true
+  github.com/gabkaclassic/metrics/internal/repository:
+    config:
+      all: true
+  github.com/gabkaclassic/metrics/internal/service:
+    config:
+      all: true
