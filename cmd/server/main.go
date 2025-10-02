@@ -14,7 +14,9 @@ import (
 
 func main() {
 
-	cfg := config.ParseServerConfig()
+	cfg, err := config.ParseServerConfig()
+
+	panicWithError(err)
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 

@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"log/slog"
 	"net/http"
 )
 
@@ -31,6 +32,7 @@ func (server *Server) GetHandler() *http.Handler {
 }
 
 func (server *Server) Run() {
+	slog.Info("Run HHTP server", slog.String("address", server.address))
 	srv := http.Server{
 		Addr:    server.address,
 		Handler: *server.handler,
