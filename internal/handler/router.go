@@ -4,7 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"net/http"
 
-	"github.com/gabkaclassic/metrics/internal/middleware"
+	"github.com/gabkaclassic/metrics/pkg/middleware"
 )
 
 type RouterConfiguration struct {
