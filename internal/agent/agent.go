@@ -1,13 +1,16 @@
 package agent
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"runtime"
 	"sync"
 
+	"encoding/json"
 	"log/slog"
 
+	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 )
@@ -64,17 +67,63 @@ func (agent *MetricsAgent) Report() error {
 
 	for _, m := range metricCopy {
 		wg.Add(1)
-		go func(metric metric.Metric) {
+		go func(metricEntity metric.Metric) {
 			defer wg.Done()
 
-			url := fmt.Sprintf("/update/%s/%s/%v", metric.Type(), metric.Name(), metric.Value())
+			metricName := metricEntity.Name()
+			metricType := metricEntity.Type()
+			metricRawValue := metricEntity.Value()
 
-			resp, err := agent.client.Post(url, &httpclient.RequestOptions{})
+			metricModel := models.Metrics{
+				ID:    metricName,
+				MType: string(metricType),
+			}
+
+			switch metricType {
+			case models.Counter:
+				delta, ok := metricRawValue.(int64)
+
+				if !ok {
+					errCh <- fmt.Errorf("invalid delta value: %v", metricRawValue)
+					return
+				}
+				metricModel.Delta = &delta
+			case models.Gauge:
+				value, ok := metricRawValue.(float64)
+
+				if !ok {
+					errCh <- fmt.Errorf("invalid value: %v", metricRawValue)
+					return
+				}
+				metricModel.Value = &value
+			}
+
+			raw, err := json.Marshal(metricModel)
+
+			if err != nil {
+				slog.Error(
+					"Marshal metric report error",
+					slog.Any("metric", metricEntity),
+					slog.String("error", err.Error()),
+				)
+				errCh <- err
+				return
+			}
+
+			resp, err := agent.client.Post(
+				"/update/",
+				&httpclient.RequestOptions{
+					Body: bytes.NewBuffer(raw),
+					Headers: &httpclient.Headers{
+						"Content-Type": "application/json",
+					},
+				},
+			)
 
 			if err != nil {
 				slog.Error(
 					"Send metric report error",
-					slog.Any("metric", metric),
+					slog.Any("metric", metricEntity),
 					slog.String("error", err.Error()),
 				)
 				errCh <- err
@@ -82,7 +131,7 @@ func (agent *MetricsAgent) Report() error {
 			}
 
 			if resp == nil {
-				errCh <- fmt.Errorf("nil response for metric %s", metric.Name())
+				errCh <- fmt.Errorf("nil response for metric %s", metricName)
 				return
 			}
 
@@ -91,7 +140,7 @@ func (agent *MetricsAgent) Report() error {
 			if readErr != nil {
 				slog.Error(
 					"Read sending report body error",
-					slog.Any("metric", metric),
+					slog.Any("metric", metricEntity),
 					slog.Any("response", resp),
 					slog.String("error", readErr.Error()),
 				)
@@ -99,7 +148,7 @@ func (agent *MetricsAgent) Report() error {
 				return
 			}
 
-			resultCh <- fmt.Sprintf("Metric %s: %s", metric.Name(), string(body))
+			resultCh <- fmt.Sprintf("Metric %s: %s", metricName, string(body))
 		}(m)
 	}
 
