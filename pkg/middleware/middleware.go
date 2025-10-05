@@ -2,12 +2,12 @@ package middleware
 
 import (
 	"bytes"
+	api "github.com/gabkaclassic/metrics/pkg/error"
+	"github.com/google/uuid"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 type middleware func(handler http.Handler) http.Handler
@@ -31,6 +31,19 @@ func WithContentType(ct ContentType) middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", string(ct))
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func RequireContentType(ct ContentType) middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Content-Type") != string(ct) {
+				err := api.BadRequest("Invalid content type")
+				api.RespondError(w, err)
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
