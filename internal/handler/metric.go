@@ -6,8 +6,9 @@ import (
 	"html/template"
 	"net/http"
 
-	api "github.com/gabkaclassic/metrics/internal/error"
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/service"
+	api "github.com/gabkaclassic/metrics/pkg/error"
 )
 
 type MetricsPageData struct {
@@ -63,6 +64,29 @@ func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (handler *MetricsHandler) SaveJSON(w http.ResponseWriter, r *http.Request) {
+	metric := &models.Metrics{}
+	err := json.NewDecoder(r.Body).Decode(metric)
+	if err != nil {
+		api.RespondError(w, api.UnprocessibleEntity("Invalid input JSON"))
+		return
+	}
+
+	saveErr := handler.service.SaveStruct(*metric)
+
+	if saveErr != nil {
+		api.RespondError(w, saveErr)
+		return
+	}
+
+	encodeErr := json.NewEncoder(w).Encode(metric)
+
+	if encodeErr != nil {
+		api.RespondError(w, encodeErr)
+		return
+	}
+}
+
 func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	metricID := r.PathValue("id")
@@ -75,7 +99,37 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(value)
+	encodeErr := json.NewEncoder(w).Encode(value)
+
+	if encodeErr != nil {
+		api.RespondError(w, encodeErr)
+		return
+	}
+}
+
+func (handler *MetricsHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
+
+	metric := &models.Metrics{}
+	err := json.NewDecoder(r.Body).Decode(metric)
+
+	if err != nil {
+		api.RespondError(w, api.UnprocessibleEntity("Invalid input JSON"))
+		return
+	}
+
+	value, getErr := handler.service.GetStruct(metric.ID, metric.MType)
+
+	if getErr != nil {
+		api.RespondError(w, getErr)
+		return
+	}
+
+	encodeErr := json.NewEncoder(w).Encode(value)
+
+	if encodeErr != nil {
+		api.RespondError(w, encodeErr)
+		return
+	}
 }
 
 func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {

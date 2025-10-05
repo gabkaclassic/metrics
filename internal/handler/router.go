@@ -34,6 +34,22 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		),
 	)
 	router.Post(
+		"/update/",
+		middleware.Wrap(
+			http.HandlerFunc(handler.SaveJSON),
+			middleware.RequireContentType(middleware.JSON),
+			middleware.WithContentType(middleware.JSON),
+		),
+	)
+	router.Post(
+		"/value/",
+		middleware.Wrap(
+			http.HandlerFunc(handler.GetJSON),
+			middleware.RequireContentType(middleware.JSON),
+			middleware.WithContentType(middleware.JSON),
+		),
+	)
+	router.Post(
 		"/update/{type}/{id}/{value}",
 		middleware.Wrap(
 			http.HandlerFunc(handler.Save),
