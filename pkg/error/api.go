@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 )
 
@@ -30,6 +31,10 @@ func BadRequest(message string) *APIError {
 	return &APIError{Code: http.StatusBadRequest, Message: message}
 }
 
+func UnprocessibleEntity(message string) *APIError {
+	return &APIError{Code: http.StatusUnprocessableEntity, Message: message}
+}
+
 func Internal(message string, err error) *APIError {
 	return &APIError{Code: http.StatusInternalServerError, Message: message, Err: err}
 }
@@ -49,5 +54,5 @@ func RespondError(w http.ResponseWriter, err error) {
 	}
 
 	w.WriteHeader(apiErr.Code)
-	w.Write([]byte(apiErr.Message))
+	json.NewEncoder(w).Encode(map[string]string{"error": apiErr.Message})
 }
