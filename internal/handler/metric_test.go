@@ -1,17 +1,18 @@
 package handler
 
 import (
+	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/internal/service"
+	"github.com/stretchr/testify/mock"
 	"net/http"
 	"net/http/httptest"
 
-	models "github.com/gabkaclassic/metrics/internal/model"
-	"github.com/gabkaclassic/metrics/internal/service"
-
 	"fmt"
 	"io"
+	"strings"
 	"testing"
 
-	api "github.com/gabkaclassic/metrics/internal/error"
+	api "github.com/gabkaclassic/metrics/pkg/error"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -109,6 +110,142 @@ func TestMetricsHandler_Save(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			handler.Save(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			if tt.expectErrorMsg != "" {
+				assert.Contains(t, rr.Body.String(), tt.expectErrorMsg)
+			}
+		})
+	}
+}
+
+func TestMetricsHandler_SaveJSON(t *testing.T) {
+	tests := []struct {
+		name              string
+		body              string
+		mockSave          func(metric models.Metrics) *api.APIError
+		expectStatus      int
+		expectServiceCall bool
+		expectErrorMsg    string
+	}{
+		{
+			name: "valid JSON",
+			body: `{"id":"m1","type":"counter","delta":10}`,
+			mockSave: func(metric models.Metrics) *api.APIError {
+				assert.Equal(t, "m1", metric.ID)
+				assert.Equal(t, "counter", metric.MType)
+				assert.Equal(t, int64(10), *metric.Delta)
+				return nil
+			},
+			expectStatus:      http.StatusOK,
+			expectServiceCall: true,
+		},
+		{
+			name:           "invalid JSON",
+			body:           `{"id": "m1", "type":`,
+			mockSave:       func(metric models.Metrics) *api.APIError { return nil },
+			expectStatus:   http.StatusUnprocessableEntity,
+			expectErrorMsg: "Invalid input JSON",
+		},
+		{
+			name: "service error",
+			body: `{"id":"m2","type":"gauge","value":3.14}`,
+			mockSave: func(metric models.Metrics) *api.APIError {
+				return api.BadRequest("save failed")
+			},
+			expectStatus:      http.StatusBadRequest,
+			expectServiceCall: true,
+			expectErrorMsg:    "save failed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := service.NewMockMetricsService(t)
+
+			if tt.expectServiceCall {
+				mockService.EXPECT().
+					SaveStruct(mock.AnythingOfType("models.Metrics")).
+					RunAndReturn(tt.mockSave)
+			}
+
+			handler, err := NewMetricsHandler(mockService)
+			assert.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
+			rr := httptest.NewRecorder()
+
+			handler.SaveJSON(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			if tt.expectErrorMsg != "" {
+				assert.Contains(t, rr.Body.String(), tt.expectErrorMsg)
+			}
+		})
+	}
+}
+
+func TestMetricsHandler_GetJSON(t *testing.T) {
+	tests := []struct {
+		name           string
+		body           string
+		mockGet        func(id, mType string) (*models.Metrics, *api.APIError)
+		expectStatus   int
+		expectErrorMsg string
+		expectGetCall  bool
+	}{
+		{
+			name: "valid JSON and service success",
+			body: `{"id":"m1","type":"counter"}`,
+			mockGet: func(id, mType string) (*models.Metrics, *api.APIError) {
+				assert.Equal(t, "m1", id)
+				assert.Equal(t, "counter", mType)
+				delta := int64(42)
+				return &models.Metrics{
+					ID:    id,
+					MType: mType,
+					Delta: &delta,
+				}, nil
+			},
+			expectStatus:  http.StatusOK,
+			expectGetCall: true,
+		},
+		{
+			name:           "invalid JSON",
+			body:           `{"id":"m1","type":`,
+			expectStatus:   http.StatusUnprocessableEntity,
+			expectErrorMsg: "Invalid input JSON",
+			expectGetCall:  false,
+		},
+		{
+			name: "service returns error",
+			body: `{"id":"m2","type":"gauge"}`,
+			mockGet: func(id, mType string) (*models.Metrics, *api.APIError) {
+				return nil, api.NotFound("metric not found")
+			},
+			expectStatus:   http.StatusNotFound,
+			expectErrorMsg: "metric not found",
+			expectGetCall:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := service.NewMockMetricsService(t)
+
+			if tt.expectGetCall {
+				mockService.EXPECT().
+					GetStruct(mock.AnythingOfType("string"), mock.AnythingOfType("string")).
+					RunAndReturn(tt.mockGet)
+			}
+
+			handler, err := NewMetricsHandler(mockService)
+			assert.NoError(t, err)
+
+			req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(tt.body))
+			rr := httptest.NewRecorder()
+
+			handler.GetJSON(rr, req)
 
 			assert.Equal(t, tt.expectStatus, rr.Code)
 			if tt.expectErrorMsg != "" {
