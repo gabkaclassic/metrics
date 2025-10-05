@@ -23,5 +23,5 @@ func (metric *PollCount) Update() {
 }
 
 func (metric PollCount) Name() string {
-	return "pollCount"
+	return "PollCount"
 }
