@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
+	"compress/gzip"
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
@@ -97,15 +98,25 @@ func (agent *MetricsAgent) Report() error {
 				}
 				metricModel.Value = &value
 			}
-
 			raw, err := json.Marshal(metricModel)
-
 			if err != nil {
-				slog.Error(
-					"Marshal metric report error",
-					slog.Any("metric", metricEntity),
-					slog.String("error", err.Error()),
-				)
+				slog.Error("Marshal metric report error", slog.Any("metric", metricEntity), slog.String("error", err.Error()))
+				errCh <- err
+				return
+			}
+
+			var buffer bytes.Buffer
+			compressor := gzip.NewWriter(&buffer)
+
+			if _, err := compressor.Write(raw); err != nil {
+				slog.Error("Compressing data error", slog.Any("metric", metricEntity), slog.String("error", err.Error()))
+				errCh <- err
+				_ = compressor.Close()
+				return
+			}
+
+			if err := compressor.Close(); err != nil {
+				slog.Error("Closing compressor failed", slog.String("error", err.Error()))
 				errCh <- err
 				return
 			}
@@ -113,9 +124,10 @@ func (agent *MetricsAgent) Report() error {
 			resp, err := agent.client.Post(
 				"/update/",
 				&httpclient.RequestOptions{
-					Body: bytes.NewBuffer(raw),
+					Body: &buffer,
 					Headers: &httpclient.Headers{
-						"Content-Type": "application/json",
+						"Content-Type":     "application/json",
+						"Content-Encoding": "gzip",
 					},
 				},
 			)
