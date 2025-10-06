@@ -41,7 +41,6 @@ var decompressors = map[CompressType]func(io.ReadCloser) (*compress.CompressRead
 func Compress(compressMapping map[ContentType]CompressType) middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
 			compressType, exists := compressMapping[ContentType(w.Header().Get("Content-Type"))]
 			acceptedCompressTypes := r.Header.Get("Accept-Encoding")
 			ctor, compressorExists := compressors[compressType]
