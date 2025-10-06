@@ -17,6 +17,7 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 
 	router.Use(
 		middleware.Logger,
+		middleware.Decompress(),
 	)
 
 	setupMetricsRouter(router, config.MetricsHandler)
@@ -30,6 +31,10 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		"/",
 		middleware.Wrap(
 			http.HandlerFunc(handler.GetAll),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.HTML:      middleware.GZIP,
+				middleware.HTML_UTF8: middleware.GZIP,
+			}),
 			middleware.WithContentType(middleware.HTML),
 		),
 	)
@@ -38,6 +43,9 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		middleware.Wrap(
 			http.HandlerFunc(handler.SaveJSON),
 			middleware.RequireContentType(middleware.JSON),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
 			middleware.WithContentType(middleware.JSON),
 		),
 	)
@@ -46,6 +54,9 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		middleware.Wrap(
 			http.HandlerFunc(handler.GetJSON),
 			middleware.RequireContentType(middleware.JSON),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
 			middleware.WithContentType(middleware.JSON),
 		),
 	)
@@ -60,6 +71,9 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		"/value/{type}/{id}",
 		middleware.Wrap(
 			http.HandlerFunc(handler.Get),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
 			middleware.WithContentType(middleware.JSON),
 		),
 	)

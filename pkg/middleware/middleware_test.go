@@ -157,9 +157,14 @@ func TestWithContentType(t *testing.T) {
 			expectedType: "text/plain; charset=utf-8",
 		},
 		{
+			name:         "set HTML UTF-8 content type",
+			ct:           HTML_UTF8,
+			expectedType: "text/html; charset=utf-8",
+		},
+		{
 			name:         "set HTML content type",
 			ct:           HTML,
-			expectedType: "text/html; charset=utf-8",
+			expectedType: "text/html",
 		},
 	}
 
