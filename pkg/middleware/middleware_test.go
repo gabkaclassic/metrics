@@ -77,6 +77,69 @@ func TestWrap(t *testing.T) {
 	}
 }
 
+func TestRequireContentType(t *testing.T) {
+	tests := []struct {
+		name           string
+		requiredType   ContentType
+		requestType    string
+		expectStatus   int
+		expectErrorMsg string
+		expectNextCall bool
+	}{
+		{
+			name:           "valid content type passes",
+			requiredType:   JSON,
+			requestType:    "application/json",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:           "invalid content type returns error",
+			requiredType:   JSON,
+			requestType:    "text/plain",
+			expectStatus:   http.StatusBadRequest,
+			expectErrorMsg: "Invalid content type",
+			expectNextCall: false,
+		},
+		{
+			name:           "missing content type returns error",
+			requiredType:   JSON,
+			requestType:    "",
+			expectStatus:   http.StatusBadRequest,
+			expectErrorMsg: "Invalid content type",
+			expectNextCall: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mw := RequireContentType(tt.requiredType)(next)
+
+			req := httptest.NewRequest(http.MethodPost, "/", nil)
+			if tt.requestType != "" {
+				req.Header.Set("Content-Type", tt.requestType)
+			}
+
+			rr := httptest.NewRecorder()
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			assert.Equal(t, tt.expectNextCall, nextCalled)
+
+			if tt.expectErrorMsg != "" {
+				assert.Contains(t, rr.Body.String(), tt.expectErrorMsg)
+			}
+		})
+	}
+}
+
 func TestWithContentType(t *testing.T) {
 	tests := []struct {
 		name         string
