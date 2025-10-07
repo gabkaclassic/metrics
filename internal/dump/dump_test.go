@@ -59,12 +59,14 @@ func TestDumper_Dump(t *testing.T) {
 
 	tests := []struct {
 		name       string
+		filename   string
 		setup      func() *Dumper
 		expectFile bool
 		expectErr  bool
 	}{
 		{
-			name: "success dump",
+			name:     "success dump",
+			filename: "success_dump",
 			setup: func() *Dumper {
 				strg := storage.NewMemStorage()
 				strg.Metrics["test"] = models.Metrics{
@@ -80,7 +82,8 @@ func TestDumper_Dump(t *testing.T) {
 			expectErr:  false,
 		},
 		{
-			name: "invalid_path_error",
+			name:     "invalid_path_error",
+			filename: "invalid_path_error",
 			setup: func() *Dumper {
 				strg := storage.NewMemStorage()
 				d, _ := NewDumper("/invalidpath", strg)
@@ -90,7 +93,8 @@ func TestDumper_Dump(t *testing.T) {
 			expectErr:  true,
 		},
 		{
-			name: "empty storage dump",
+			name:     "empty storage dump",
+			filename: "empty_storage_dump",
 			setup: func() *Dumper {
 				strg := storage.NewMemStorage()
 				file := filepath.Join(tmpDir, "empty", "json")
@@ -131,12 +135,14 @@ func TestDumper_Read(t *testing.T) {
 
 	tests := []struct {
 		name      string
+		filename  string
 		setupFile func(path string)
 		expectErr bool
 		expectLen int
 	}{
 		{
-			name: "valid dump file",
+			name:     "valid dump file",
+			filename: "valid_dump_file",
 			setupFile: func(path string) {
 				metrics := []models.Metrics{
 					{ID: "test1", MType: "counter", Delta: int64Ptr(10)},
@@ -150,7 +156,8 @@ func TestDumper_Read(t *testing.T) {
 			expectLen: 2,
 		},
 		{
-			name: "empty file",
+			name:     "empty file",
+			filename: "empty_file",
 			setupFile: func(path string) {
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte{}, 0660)
@@ -159,7 +166,8 @@ func TestDumper_Read(t *testing.T) {
 			expectLen: 0,
 		},
 		{
-			name: "invalid JSON",
+			name:     "invalid JSON",
+			filename: "invalid_json",
 			setupFile: func(path string) {
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte("{invalid json"), 0660)
@@ -168,7 +176,8 @@ func TestDumper_Read(t *testing.T) {
 			expectLen: 0,
 		},
 		{
-			name: "file does not exist",
+			name:     "file does not exist",
+			filename: "file_does_not_exist",
 			setupFile: func(path string) {
 			},
 			expectErr: false,
@@ -178,7 +187,7 @@ func TestDumper_Read(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file := filepath.Join(tmpDir, "dump", tt.name+".json")
+			file := filepath.Join(tmpDir, "dump", tt.filename+".json")
 			if tt.setupFile != nil {
 				tt.setupFile(file)
 			}
