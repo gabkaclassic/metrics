@@ -35,7 +35,7 @@ type (
 		JSON    bool   `env:"LOG_JSON" envDefault:"true"`
 	}
 	Dump struct {
-		StoreInterval   time.Duration `env:"STORE_INTERVAL" envDefault:"3"`
+		StoreInterval   time.Duration `env:"STORE_INTERVAL" envDefault:"300"`
 		FileStoragePath string        `env:"FILE_STORAGE_PATH" envDefault:"/tmp/metrics_dumps/dump.json"`
 		Restore         bool          `env:"RESTORE" envDefault:"false"`
 	}
