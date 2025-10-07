@@ -15,6 +15,7 @@ type (
 	Server struct {
 		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
 		Log     Log
+		Dump    Dump
 	}
 	Agent struct {
 		PollInterval   time.Duration `env:"POLL_INTERVAL" envDefault:"2"`
@@ -33,6 +34,11 @@ type (
 		Console bool   `env:"LOG_CONSOLE" envDefault:"false"`
 		JSON    bool   `env:"LOG_JSON" envDefault:"true"`
 	}
+	Dump struct {
+		StoreInterval   time.Duration `env:"STORE_INTERVAL" envDefault:"3"`
+		FileStoragePath string        `env:"FILE_STORAGE_PATH" envDefault:"/tmp/metrics_dumps/dump.json"`
+		Restore         bool          `env:"RESTORE" envDefault:"false"`
+	}
 )
 
 func ensureURL(addr string) string {
@@ -48,7 +54,7 @@ func ensureURL(addr string) string {
 
 func defineEnvParsers() map[reflect.Type]env.ParserFunc {
 	return map[reflect.Type]env.ParserFunc{
-		reflect.TypeOf(time.Duration(0)): func(v string) (interface{}, error) {
+		reflect.TypeOf(time.Duration(0)): func(v string) (any, error) {
 			secs, err := strconv.Atoi(v)
 			if err != nil {
 				return nil, err
@@ -74,12 +80,22 @@ func ParseServerConfig() (*Server, error) {
 	logConsole := flag.Bool("log-console", cfg.Log.Console, "Enable console logging")
 	logJSON := flag.Bool("log-json", cfg.Log.JSON, "Enable JSON output for logs")
 
+	storeInterval := flag.Uint("i", uint(cfg.Dump.StoreInterval.Seconds()), "Store interval")
+	fileStoragePath := flag.String("f", cfg.Dump.FileStoragePath, "File storate path")
+	restore := flag.Bool("r", cfg.Dump.Restore, "Restore need")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "a":
 			cfg.Address = *address
+		case "i":
+			cfg.Dump.StoreInterval = time.Duration(*storeInterval) * time.Second
+		case "f":
+			cfg.Dump.FileStoragePath = *fileStoragePath
+		case "r":
+			cfg.Dump.Restore = *restore
 		case "log-level":
 			cfg.Log.Level = *logLevel
 		case "log-file":
