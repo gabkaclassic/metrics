@@ -170,7 +170,6 @@ func TestDumper_Read(t *testing.T) {
 		{
 			name: "file does not exist",
 			setupFile: func(path string) {
-				// ничего не создаём
 			},
 			expectErr: false,
 			expectLen: 0,

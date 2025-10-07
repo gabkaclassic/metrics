@@ -18,10 +18,10 @@ type middleware func(handler http.Handler) http.Handler
 type ContentType string
 
 const (
-	JSON      ContentType = "application/json"
-	TEXT      ContentType = "text/plain; charset=utf-8"
-	HTML      ContentType = "text/html"
-	HTML_UTF8 ContentType = "text/html; charset=utf-8"
+	JSON     ContentType = "application/json"
+	TEXT     ContentType = "text/plain; charset=utf-8"
+	HTML     ContentType = "text/html"
+	HTMLUTF8 ContentType = "text/html; charset=utf-8"
 )
 
 type CompressType string

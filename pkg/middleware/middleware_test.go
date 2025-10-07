@@ -2,10 +2,11 @@ package middleware
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWrap(t *testing.T) {
@@ -158,7 +159,7 @@ func TestWithContentType(t *testing.T) {
 		},
 		{
 			name:         "set HTML UTF-8 content type",
-			ct:           HTML_UTF8,
+			ct:           HTMLUTF8,
 			expectedType: "text/html; charset=utf-8",
 		},
 		{

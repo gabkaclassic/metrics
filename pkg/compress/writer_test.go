@@ -144,6 +144,7 @@ func TestCompressWriter_Integration(t *testing.T) {
 	gr, err := gzip.NewReader(r.Body)
 	assert.NoError(t, err)
 	defer gr.Close()
+	defer r.Body.Close()
 
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, gr)

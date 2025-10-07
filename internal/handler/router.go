@@ -1,8 +1,9 @@
 package handler
 
 import (
-	"github.com/go-chi/chi/v5"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/gabkaclassic/metrics/pkg/middleware"
 )
@@ -32,8 +33,8 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		middleware.Wrap(
 			http.HandlerFunc(handler.GetAll),
 			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
-				middleware.HTML:      middleware.GZIP,
-				middleware.HTML_UTF8: middleware.GZIP,
+				middleware.HTML:     middleware.GZIP,
+				middleware.HTMLUTF8: middleware.GZIP,
 			}),
 			middleware.WithContentType(middleware.HTML),
 		),
