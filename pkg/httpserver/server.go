@@ -31,16 +31,12 @@ func (server *Server) GetHandler() *http.Handler {
 	return server.handler
 }
 
-func (server *Server) Run() {
+func (server *Server) Run() error {
 	slog.Info("Run HHTP server", slog.String("address", server.address))
 	srv := http.Server{
 		Addr:    server.address,
 		Handler: *server.handler,
 	}
 
-	err := srv.ListenAndServe()
-
-	if err != nil {
-		panic(err)
-	}
+	return srv.ListenAndServe()
 }
