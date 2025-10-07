@@ -1,9 +1,16 @@
 package main
 
 import (
+	"context"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gabkaclassic/metrics/internal/config"
+	"github.com/gabkaclassic/metrics/internal/dump"
 	"github.com/gabkaclassic/metrics/internal/handler"
 	"github.com/gabkaclassic/metrics/internal/repository"
 	"github.com/gabkaclassic/metrics/internal/service"
@@ -20,23 +27,68 @@ func main() {
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
-	router, err := setupRouter()
+	storage := storage.NewMemStorage()
 
+	dumper, err := dump.NewDumper(cfg.Dump.FileStoragePath, storage)
+	panicWithError(err)
+
+	readDump(cfg.Dump, dumper)
+
+	router, err := setupRouter(storage)
 	panicWithError(err)
 
 	server := httpserver.New(
 		httpserver.Address(cfg.Address),
 		httpserver.Handler(&router),
 	)
-	server.Run()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	go startDumper(ctx, dumper, cfg.Dump)
+
+	go func() {
+		slog.Info("Starting HTTP server...")
+		if err := server.Run(); err != nil && err != http.ErrServerClosed {
+			slog.Error("HTTP server error", slog.String("error", err.Error()))
+			stop()
+		}
+	}()
+
+	<-ctx.Done()
+	slog.Info("Shutting down gracefully...")
+	slog.Info("Shutdown complete")
 }
 
-func setupRouter() (http.Handler, error) {
+func readDump(cfg config.Dump, dumper *dump.Dumper) {
+	if cfg.Restore {
+		dumper.Read()
+	}
+}
 
-	storage := storage.NewMemStorage()
+func startDumper(ctx context.Context, dumper *dump.Dumper, cfg config.Dump) {
+	ticker := time.NewTicker(cfg.StoreInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := dumper.Dump(); err != nil {
+				slog.Error("Dump error", slog.String("error", err.Error()))
+			} else {
+				slog.Info("Dump completed")
+			}
+		case <-ctx.Done():
+			slog.Info("Dumper stopped")
+			return
+		}
+	}
+}
+
+func setupRouter(strg *storage.MemStorage) (http.Handler, error) {
 
 	// Metrics
-	metricsRepository, err := repository.NewMetricsRepository(storage)
+	metricsRepository, err := repository.NewMetricsRepository(strg)
 
 	if err != nil {
 		return nil, err
