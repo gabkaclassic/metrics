@@ -80,10 +80,10 @@ func TestDumper_Dump(t *testing.T) {
 			expectErr:  false,
 		},
 		{
-			name: "invalid path error",
+			name: "invalid_path_error",
 			setup: func() *Dumper {
 				strg := storage.NewMemStorage()
-				d, _ := NewDumper("/root/invalid/path/json", strg)
+				d, _ := NewDumper("/invalidpath", strg)
 				return d
 			},
 			expectFile: false,
