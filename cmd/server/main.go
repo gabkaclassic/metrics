@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/internal/dump"
@@ -59,15 +58,8 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go startDumper(ctx, dumper, cfg.Dump)
-
-	go func() {
-		slog.Info("Starting HTTP server...")
-		if err := server.Run(); err != nil && err != http.ErrServerClosed {
-			slog.Error("HTTP server error", slog.String("error", err.Error()))
-			stop()
-		}
-	}()
+	go dumper.StartDumper(ctx, cfg.Dump)
+	go server.Run(ctx, stop)
 
 	<-ctx.Done()
 	slog.Info("Shutting down gracefully...")
@@ -79,25 +71,6 @@ func run() error {
 func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	if cfg.Restore {
 		dumper.Read()
-	}
-}
-
-func startDumper(ctx context.Context, dumper *dump.Dumper, cfg config.Dump) {
-	ticker := time.NewTicker(cfg.StoreInterval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			if err := dumper.Dump(); err != nil {
-				slog.Error("Dump error", slog.String("error", err.Error()))
-			} else {
-				slog.Info("Dump completed")
-			}
-		case <-ctx.Done():
-			slog.Info("Dumper stopped")
-			return
-		}
 	}
 }
 

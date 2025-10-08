@@ -1,13 +1,16 @@
 package dump
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/storage"
 )
@@ -101,4 +104,23 @@ func (d *Dumper) Read() error {
 
 	slog.Info("Dump restored successfully", slog.String("path", d.filePath))
 	return nil
+}
+
+func (dumper *Dumper) StartDumper(ctx context.Context, cfg config.Dump) {
+	ticker := time.NewTicker(cfg.StoreInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := dumper.Dump(); err != nil {
+				slog.Error("Dump error", slog.String("error", err.Error()))
+			} else {
+				slog.Info("Dump completed")
+			}
+		case <-ctx.Done():
+			slog.Info("Dumper stopped")
+			return
+		}
+	}
 }
