@@ -47,7 +47,6 @@ func TestNewDumper(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, d)
-				assert.Equal(t, tt.filePath, d.filePath)
 				assert.Equal(t, tt.storage, d.storage)
 			}
 		})
@@ -106,9 +105,9 @@ func TestDumper_Dump(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			assert.FileExists(t, d.filePath)
+			assert.FileExists(t, d.file.Name())
 
-			data, err := os.ReadFile(d.filePath)
+			data, err := os.ReadFile(d.file.Name())
 			assert.NoError(t, err)
 
 			var got []models.Metrics

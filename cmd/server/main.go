@@ -42,6 +42,8 @@ func run() error {
 		return err
 	}
 
+	defer dumper.Close()
+
 	readDump(cfg.Dump, dumper)
 
 	router, err := setupRouter(storage)

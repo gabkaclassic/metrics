@@ -16,8 +16,8 @@ import (
 )
 
 type Dumper struct {
-	filePath string
-	storage  *storage.MemStorage
+	file    *os.File
+	storage *storage.MemStorage
 }
 
 func NewDumper(filePath string, storage *storage.MemStorage) (*Dumper, error) {
@@ -26,19 +26,26 @@ func NewDumper(filePath string, storage *storage.MemStorage) (*Dumper, error) {
 		return nil, errors.New("create dumper error: storage can't be nil")
 	}
 
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		slog.Error("Failed to create directories", slog.String("error", err.Error()), slog.String("path", dir))
+		return nil, err
+	}
+
+	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0660)
+
+	if err != nil {
+		slog.Error("Open file error", slog.String("error", err.Error()))
+		return nil, err
+	}
+
 	return &Dumper{
-		filePath: filePath,
-		storage:  storage,
+		file:    file,
+		storage: storage,
 	}, nil
 }
 
 func (d *Dumper) Dump() error {
-
-	dir := filepath.Dir(d.filePath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		slog.Error("Failed to create directories", slog.String("error", err.Error()), slog.String("path", dir))
-		return err
-	}
 
 	data := make([]models.Metrics, 0)
 	for _, metric := range d.storage.Metrics {
@@ -52,18 +59,10 @@ func (d *Dumper) Dump() error {
 		return err
 	}
 
-	file, err := os.OpenFile(d.filePath, os.O_WRONLY|os.O_CREATE, 0660)
+	_, err = d.file.Write(marshalledData)
 
 	if err != nil {
-		slog.Error("Open file error", slog.String("error", err.Error()), slog.String("path", d.filePath))
-		return err
-	}
-	defer file.Close()
-
-	_, err = file.Write(marshalledData)
-
-	if err != nil {
-		slog.Error("Write data error", slog.String("error", err.Error()), slog.String("path", d.filePath))
+		slog.Error("Write data error", slog.String("error", err.Error()))
 		return err
 	}
 
@@ -72,29 +71,21 @@ func (d *Dumper) Dump() error {
 
 func (d *Dumper) Read() error {
 
-	file, err := os.OpenFile(d.filePath, os.O_RDONLY|os.O_CREATE, 0660)
+	data, err := io.ReadAll(d.file)
 
 	if err != nil {
-		slog.Info("Open file error", slog.String("error", err.Error()), slog.String("path", d.filePath))
-		return err
-	}
-	defer file.Close()
-
-	data, err := io.ReadAll(file)
-
-	if err != nil {
-		slog.Info("Read data error", slog.String("error", err.Error()), slog.String("path", d.filePath))
+		slog.Info("Read data error", slog.String("error", err.Error()))
 		return err
 	}
 
 	if len(data) == 0 {
-		slog.Info("Dump file is empty, nothing to restore", slog.String("path", d.filePath))
+		slog.Info("Dump file is empty, nothing to restore")
 		return nil
 	}
 
 	var metrics []models.Metrics
 	if err := json.Unmarshal(data, &metrics); err != nil {
-		slog.Error("Unmarshal data error", slog.String("error", err.Error()), slog.String("path", d.filePath))
+		slog.Error("Unmarshal data error", slog.String("error", err.Error()))
 		return err
 	}
 
@@ -102,7 +93,7 @@ func (d *Dumper) Read() error {
 		d.storage.Metrics[metric.ID] = metric
 	}
 
-	slog.Info("Dump restored successfully", slog.String("path", d.filePath))
+	slog.Info("Dump restored successfully")
 	return nil
 }
 
@@ -123,4 +114,8 @@ func (dumper *Dumper) StartDumper(ctx context.Context, cfg config.Dump) {
 			return
 		}
 	}
+}
+
+func (d *Dumper) Close() {
+	d.file.Close()
 }
