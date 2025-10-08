@@ -62,7 +62,6 @@ func run() error {
 	go server.Run(ctx, stop)
 
 	<-ctx.Done()
-	slog.Info("Shutting down gracefully...")
 	slog.Info("Shutdown complete")
 
 	return nil
