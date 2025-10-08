@@ -41,11 +41,9 @@ func (server *Server) Run(ctx context.Context, stop context.CancelFunc) {
 		Handler: *server.handler,
 	}
 
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("HTTP server run error", slog.String("error", err.Error()))
-		}
-	}()
+	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		slog.Error("HTTP server run error", slog.String("error", err.Error()))
+	}
 
 	<-ctx.Done()
 
