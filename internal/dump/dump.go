@@ -59,6 +59,18 @@ func (d *Dumper) Dump() error {
 		return err
 	}
 
+	_, err = d.file.Seek(0, 0)
+	if err != nil {
+		slog.Error("Seek file error", slog.String("error", err.Error()))
+		return err
+	}
+
+	err = d.file.Truncate(0)
+	if err != nil {
+		slog.Error("Truncate file error", slog.String("error", err.Error()))
+		return err
+	}
+
 	_, err = d.file.Write(marshalledData)
 
 	if err != nil {
