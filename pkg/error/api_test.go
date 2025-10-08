@@ -31,8 +31,8 @@ func TestRespondError(t *testing.T) {
 		{
 			name:     "nil error",
 			err:      nil,
-			wantCode: http.StatusInternalServerError,
-			wantBody: `{"error":"Internal server error"}` + "\n",
+			wantCode: http.StatusOK,
+			wantBody: ``,
 		},
 	}
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -48,11 +49,18 @@ func Unauthorized(message string) *APIError {
 }
 
 func RespondError(w http.ResponseWriter, err error) {
+
+	if err == nil {
+		return
+	}
+
 	apiErr, ok := err.(*APIError)
 	if !ok {
 		apiErr = Internal("Internal server error", err)
 	}
 
+	requestID := w.Header().Get("X-Request-ID")
+	slog.Info("error request handling", slog.String("error", err.Error()), slog.String("message", apiErr.Message), slog.String("id", requestID))
 	w.WriteHeader(apiErr.Code)
 	json.NewEncoder(w).Encode(map[string]string{"error": apiErr.Message})
 }
