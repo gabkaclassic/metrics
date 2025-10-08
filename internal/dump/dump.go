@@ -109,14 +109,14 @@ func (d *Dumper) Read() error {
 	return nil
 }
 
-func (dumper *Dumper) StartDumper(ctx context.Context, cfg config.Dump) {
+func (d *Dumper) StartDumper(ctx context.Context, cfg config.Dump) {
 	ticker := time.NewTicker(cfg.StoreInterval)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
-			if err := dumper.Dump(); err != nil {
+			if err := d.Dump(); err != nil {
 				slog.Error("Dump error", slog.String("error", err.Error()))
 			} else {
 				slog.Info("Dump completed")
