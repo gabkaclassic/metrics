@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -20,22 +21,35 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
 
+func run() error {
 	cfg, err := config.ParseServerConfig()
 
-	panicWithError(err)
+	if err != nil {
+		return err
+	}
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
 	storage := storage.NewMemStorage()
 
 	dumper, err := dump.NewDumper(cfg.Dump.FileStoragePath, storage)
-	panicWithError(err)
+
+	if err != nil {
+		return err
+	}
 
 	readDump(cfg.Dump, dumper)
 
 	router, err := setupRouter(storage)
-	panicWithError(err)
+
+	if err != nil {
+		return err
+	}
 
 	server := httpserver.New(
 		httpserver.Address(cfg.Address),
@@ -58,6 +72,8 @@ func main() {
 	<-ctx.Done()
 	slog.Info("Shutting down gracefully...")
 	slog.Info("Shutdown complete")
+
+	return nil
 }
 
 func readDump(cfg config.Dump, dumper *dump.Dumper) {
@@ -109,10 +125,4 @@ func setupRouter(strg *storage.MemStorage) (http.Handler, error) {
 	return handler.SetupRouter(&handler.RouterConfiguration{
 		MetricsHandler: metricsHandler,
 	}), nil
-}
-
-func panicWithError(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
