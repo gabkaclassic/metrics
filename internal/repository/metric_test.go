@@ -31,7 +31,7 @@ func TestNewMetricsRepository(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, err := NewMetricsRepository(tt.storage)
+			repo, err := NewMetricsRepository(tt.storage, &sync.RWMutex{})
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -48,7 +48,7 @@ func TestMetricsRepository_Get(t *testing.T) {
 	st := storage.NewMemStorage()
 	st.Metrics["existing"] = models.Metrics{ID: "existing", Value: floatPtr(42)}
 
-	repo, err := NewMetricsRepository(st)
+	repo, err := NewMetricsRepository(st, &sync.RWMutex{})
 
 	assert.NoError(t, err)
 
@@ -156,7 +156,7 @@ func TestMetricsRepository_Add(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			memStorage := storage.NewMemStorage()
-			repo, err := NewMetricsRepository(memStorage)
+			repo, err := NewMetricsRepository(memStorage, &sync.RWMutex{})
 			assert.NoError(t, err)
 
 			for _, m := range tt.initialMetrics {
@@ -177,7 +177,7 @@ func TestMetricsRepository_Add(t *testing.T) {
 
 func TestMetricsRepository_Reset(t *testing.T) {
 	storage := storage.NewMemStorage()
-	repo, err := NewMetricsRepository(storage)
+	repo, err := NewMetricsRepository(storage, &sync.RWMutex{})
 
 	assert.NoError(t, err)
 

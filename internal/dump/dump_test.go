@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/gabkaclassic/metrics/internal/model"
@@ -38,7 +39,7 @@ func TestNewDumper(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d, err := NewDumper(tt.filePath, tt.storage)
+			d, err := NewDumper(tt.filePath, tt.storage, &sync.RWMutex{})
 
 			if tt.wantErr != nil {
 				assert.Error(t, err)
@@ -74,7 +75,7 @@ func TestDumper_Dump(t *testing.T) {
 					Delta: int64Ptr(5),
 				}
 				file := filepath.Join(tmpDir, "metrics", "json")
-				d, _ := NewDumper(file, strg)
+				d, _ := NewDumper(file, strg, &sync.RWMutex{})
 				return d
 			},
 			expectFile: true,
@@ -86,7 +87,7 @@ func TestDumper_Dump(t *testing.T) {
 			setup: func() *Dumper {
 				strg := storage.NewMemStorage()
 				file := filepath.Join(tmpDir, "empty", "json")
-				d, _ := NewDumper(file, strg)
+				d, _ := NewDumper(file, strg, &sync.RWMutex{})
 				return d
 			},
 			expectFile: true,
@@ -181,7 +182,7 @@ func TestDumper_Read(t *testing.T) {
 			}
 
 			strg := storage.NewMemStorage()
-			d, _ := NewDumper(file, strg)
+			d, _ := NewDumper(file, strg, &sync.RWMutex{})
 
 			err := d.Read()
 

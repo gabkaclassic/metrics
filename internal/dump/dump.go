@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/gabkaclassic/metrics/internal/config"
@@ -17,10 +18,11 @@ import (
 
 type Dumper struct {
 	file    *os.File
+	mutex   *sync.RWMutex
 	storage *storage.MemStorage
 }
 
-func NewDumper(filePath string, storage *storage.MemStorage) (*Dumper, error) {
+func NewDumper(filePath string, storage *storage.MemStorage, mutex *sync.RWMutex) (*Dumper, error) {
 
 	if storage == nil {
 		return nil, errors.New("create dumper error: storage can't be nil")
@@ -41,16 +43,19 @@ func NewDumper(filePath string, storage *storage.MemStorage) (*Dumper, error) {
 
 	return &Dumper{
 		file:    file,
+		mutex:   mutex,
 		storage: storage,
 	}, nil
 }
 
 func (d *Dumper) Dump() error {
 
+	d.mutex.RLock()
 	data := make([]models.Metrics, 0)
 	for _, metric := range d.storage.Metrics {
 		data = append(data, metric)
 	}
+	d.mutex.RUnlock()
 
 	marshalledData, err := json.Marshal(data)
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/gabkaclassic/metrics/internal/config"
@@ -35,8 +36,9 @@ func run() error {
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
 	storage := storage.NewMemStorage()
+	storageMutex := &sync.RWMutex{}
 
-	dumper, err := dump.NewDumper(cfg.Dump.FileStoragePath, storage)
+	dumper, err := dump.NewDumper(cfg.Dump.FileStoragePath, storage, storageMutex)
 
 	if err != nil {
 		return err
@@ -46,7 +48,7 @@ func run() error {
 
 	readDump(cfg.Dump, dumper)
 
-	router, err := setupRouter(storage)
+	router, err := setupRouter(storage, storageMutex)
 
 	if err != nil {
 		return err
@@ -75,10 +77,10 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(strg *storage.MemStorage) (http.Handler, error) {
+func setupRouter(strg *storage.MemStorage, storageMutex *sync.RWMutex) (http.Handler, error) {
 
 	// Metrics
-	metricsRepository, err := repository.NewMetricsRepository(strg)
+	metricsRepository, err := repository.NewMetricsRepository(strg, storageMutex)
 
 	if err != nil {
 		return nil, err
