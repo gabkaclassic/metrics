@@ -1,6 +1,6 @@
 all: false
 dir: '{{.InterfaceDir}}'
-filename: mocks.go
+filename: mocks.gen.go
 force-file-write: true
 formatter: goimports
 include-auto-generated: false
@@ -16,6 +16,9 @@ packages:
     config:
       all: true
   github.com/gabkaclassic/metrics/pkg/metric:
+    config:
+      all: true
+  github.com/gabkaclassic/metrics/pkg/compress:
     config:
       all: true
   github.com/gabkaclassic/metrics/internal/repository:

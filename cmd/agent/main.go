@@ -15,7 +15,9 @@ import (
 )
 
 func main() {
-	cfg := config.ParseAgentConfig()
+	cfg, err := config.ParseAgentConfig()
+
+	panicWithError(err)
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
@@ -77,4 +79,10 @@ func startAgent(pollInterval time.Duration, reportInterval time.Duration, agent 
 	slog.Debug("Shutting down...")
 	close(done)
 	time.Sleep(100 * time.Millisecond)
+}
+
+func panicWithError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }

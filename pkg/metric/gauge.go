@@ -30,7 +30,7 @@ type RandomValue struct {
 }
 
 func (metric *RandomValue) Name() string {
-	return "randomValue"
+	return "RandomValue"
 }
 
 func (metric *RandomValue) Update() {
@@ -62,13 +62,13 @@ func NewRuntimeGaugeMetric(name string, value ValueFunctionType) *RuntimeGaugeMe
 func RuntimeMetrics(stats *runtime.MemStats) []Metric {
 	return []Metric{
 		NewRuntimeGaugeMetric(
-			"alloc", func() float64 { return float64(stats.Alloc) },
+			"Alloc", func() float64 { return float64(stats.Alloc) },
 		),
 		NewRuntimeGaugeMetric(
-			"buckHashSys", func() float64 { return float64(stats.BuckHashSys) },
+			"BuckHashSys", func() float64 { return float64(stats.BuckHashSys) },
 		),
 		NewRuntimeGaugeMetric(
-			"frees", func() float64 { return float64(stats.Frees) },
+			"Frees", func() float64 { return float64(stats.Frees) },
 		),
 		NewRuntimeGaugeMetric(
 			"GCCPUFraction", func() float64 { return float64(stats.GCCPUFraction) },
@@ -77,82 +77,82 @@ func RuntimeMetrics(stats *runtime.MemStats) []Metric {
 			"GCSys", func() float64 { return float64(stats.Alloc) },
 		),
 		NewRuntimeGaugeMetric(
-			"heapAlloc", func() float64 { return float64(stats.HeapAlloc) },
+			"HeapAlloc", func() float64 { return float64(stats.HeapAlloc) },
 		),
 		NewRuntimeGaugeMetric(
-			"heapIdle", func() float64 { return float64(stats.HeapIdle) },
+			"HeapIdle", func() float64 { return float64(stats.HeapIdle) },
 		),
 		NewRuntimeGaugeMetric(
-			"heapInuse", func() float64 { return float64(stats.HeapInuse) },
+			"HeapInuse", func() float64 { return float64(stats.HeapInuse) },
 		),
 		NewRuntimeGaugeMetric(
-			"heapObjects", func() float64 { return float64(stats.HeapObjects) },
+			"HeapObjects", func() float64 { return float64(stats.HeapObjects) },
 		),
 		NewRuntimeGaugeMetric(
-			"heapReleased", func() float64 { return float64(stats.HeapReleased) },
+			"HeapReleased", func() float64 { return float64(stats.HeapReleased) },
 		),
 		NewRuntimeGaugeMetric(
-			"heapSys", func() float64 { return float64(stats.HeapSys) },
+			"HeapSys", func() float64 { return float64(stats.HeapSys) },
 		),
 		NewRuntimeGaugeMetric(
-			"lastGC", func() float64 { return float64(stats.LastGC) },
+			"LastGC", func() float64 { return float64(stats.LastGC) },
 		),
 		NewRuntimeGaugeMetric(
-			"lookups", func() float64 { return float64(stats.Lookups) },
+			"Lookups", func() float64 { return float64(stats.Lookups) },
 		),
 		NewRuntimeGaugeMetric(
-			"mCacheInuse", func() float64 { return float64(stats.MCacheInuse) },
+			"MCacheInuse", func() float64 { return float64(stats.MCacheInuse) },
 		),
 		NewRuntimeGaugeMetric(
-			"mCacheSys", func() float64 { return float64(stats.MCacheSys) },
+			"MCacheSys", func() float64 { return float64(stats.MCacheSys) },
 		),
 		NewRuntimeGaugeMetric(
-			"mCacheInuse", func() float64 { return float64(stats.MCacheInuse) },
+			"MCacheInuse", func() float64 { return float64(stats.MCacheInuse) },
 		),
 		NewRuntimeGaugeMetric(
-			"mSpanInuse", func() float64 { return float64(stats.MSpanInuse) },
+			"MSpanInuse", func() float64 { return float64(stats.MSpanInuse) },
 		),
 		NewRuntimeGaugeMetric(
-			"mSpanSys", func() float64 { return float64(stats.MSpanSys) },
+			"MSpanSys", func() float64 { return float64(stats.MSpanSys) },
 		),
 		NewRuntimeGaugeMetric(
-			"mallocs", func() float64 { return float64(stats.Mallocs) },
+			"Mallocs", func() float64 { return float64(stats.Mallocs) },
 		),
 		NewRuntimeGaugeMetric(
-			"nextGC", func() float64 { return float64(stats.NextGC) },
+			"NextGC", func() float64 { return float64(stats.NextGC) },
 		),
 		NewRuntimeGaugeMetric(
-			"numForcedGC", func() float64 { return float64(stats.NumForcedGC) },
+			"NumForcedGC", func() float64 { return float64(stats.NumForcedGC) },
 		),
 		NewRuntimeGaugeMetric(
-			"numGC", func() float64 { return float64(stats.NumGC) },
+			"NumGC", func() float64 { return float64(stats.NumGC) },
 		),
 		NewRuntimeGaugeMetric(
-			"numForcedGC", func() float64 { return float64(stats.NumForcedGC) },
+			"NumForcedGC", func() float64 { return float64(stats.NumForcedGC) },
 		),
 		NewRuntimeGaugeMetric(
-			"otherSys", func() float64 { return float64(stats.OtherSys) },
+			"OtherSys", func() float64 { return float64(stats.OtherSys) },
 		),
 		NewRuntimeGaugeMetric(
-			"pauseTotalNs", func() float64 { return float64(stats.PauseTotalNs) },
+			"PauseTotalNs", func() float64 { return float64(stats.PauseTotalNs) },
 		),
 		NewRuntimeGaugeMetric(
-			"numForcedGC", func() float64 { return float64(stats.NumForcedGC) },
+			"NumForcedGC", func() float64 { return float64(stats.NumForcedGC) },
 		),
 		NewRuntimeGaugeMetric(
-			"stackInuse", func() float64 { return float64(stats.StackInuse) },
+			"StackInuse", func() float64 { return float64(stats.StackInuse) },
 		),
 		NewRuntimeGaugeMetric(
-			"stackSys", func() float64 { return float64(stats.StackSys) },
+			"StackSys", func() float64 { return float64(stats.StackSys) },
 		),
 		NewRuntimeGaugeMetric(
-			"sys", func() float64 { return float64(stats.Sys) },
+			"Sys", func() float64 { return float64(stats.Sys) },
 		),
 		NewRuntimeGaugeMetric(
-			"stackInuse", func() float64 { return float64(stats.StackInuse) },
+			"StackInuse", func() float64 { return float64(stats.StackInuse) },
 		),
 		NewRuntimeGaugeMetric(
-			"totalAlloc", func() float64 { return float64(stats.TotalAlloc) },
+			"TotalAlloc", func() float64 { return float64(stats.TotalAlloc) },
 		),
 	}
 }

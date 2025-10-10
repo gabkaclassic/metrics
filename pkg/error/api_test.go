@@ -20,19 +20,19 @@ func TestRespondError(t *testing.T) {
 			name:     "APIError",
 			err:      &APIError{Code: 400, Message: "bad request"},
 			wantCode: 400,
-			wantBody: "bad request",
+			wantBody: `{"error":"bad request"}` + "\n",
 		},
 		{
 			name:     "generic error",
 			err:      errors.New("some error"),
 			wantCode: http.StatusInternalServerError,
-			wantBody: "Internal server error",
+			wantBody: `{"error":"Internal server error"}` + "\n",
 		},
 		{
 			name:     "nil error",
 			err:      nil,
-			wantCode: http.StatusInternalServerError,
-			wantBody: "Internal server error",
+			wantCode: http.StatusOK,
+			wantBody: ``,
 		},
 	}
 

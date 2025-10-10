@@ -1,10 +1,11 @@
 package handler
 
 import (
-	"github.com/go-chi/chi/v5"
 	"net/http"
 
-	"github.com/gabkaclassic/metrics/internal/middleware"
+	"github.com/go-chi/chi/v5"
+
+	"github.com/gabkaclassic/metrics/pkg/middleware"
 )
 
 type RouterConfiguration struct {
@@ -17,6 +18,7 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 
 	router.Use(
 		middleware.Logger,
+		middleware.Decompress(),
 	)
 
 	setupMetricsRouter(router, config.MetricsHandler)
@@ -30,7 +32,33 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		"/",
 		middleware.Wrap(
 			http.HandlerFunc(handler.GetAll),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.HTML:     middleware.GZIP,
+				middleware.HTMLUTF8: middleware.GZIP,
+			}),
 			middleware.WithContentType(middleware.HTML),
+		),
+	)
+	router.Post(
+		"/update/",
+		middleware.Wrap(
+			http.HandlerFunc(handler.SaveJSON),
+			middleware.RequireContentType(middleware.JSON),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
+			middleware.WithContentType(middleware.JSON),
+		),
+	)
+	router.Post(
+		"/value/",
+		middleware.Wrap(
+			http.HandlerFunc(handler.GetJSON),
+			middleware.RequireContentType(middleware.JSON),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
+			middleware.WithContentType(middleware.JSON),
 		),
 	)
 	router.Post(
@@ -44,6 +72,9 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		"/value/{type}/{id}",
 		middleware.Wrap(
 			http.HandlerFunc(handler.Get),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
 			middleware.WithContentType(middleware.JSON),
 		),
 	)
