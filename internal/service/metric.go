@@ -15,7 +15,7 @@ type MetricsService interface {
 	GetStruct(metricID string, metricType string) (*models.Metrics, *api.APIError)
 	Save(id string, metricType string, rawValue string) *api.APIError
 	SaveStruct(metric models.Metrics) *api.APIError
-	GetAll() *map[string]any
+	GetAll() (*map[string]any, *api.APIError)
 }
 
 type metricsService struct {
@@ -33,8 +33,14 @@ func NewMetricsService(repository repository.MetricsRepository) (MetricsService,
 	}, nil
 }
 
-func (service *metricsService) GetAll() *map[string]any {
-	return service.repository.GetAll()
+func (service *metricsService) GetAll() (*map[string]any, *api.APIError) {
+	metrics, err := service.repository.GetAll()
+
+	if err != nil {
+		return nil, api.Internal("Get all metrics error", err)
+	}
+
+	return metrics, nil
 }
 
 func (service *metricsService) Get(metricID string, metricType string) (any, *api.APIError) {
