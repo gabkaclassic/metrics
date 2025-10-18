@@ -3,6 +3,7 @@ module github.com/gabkaclassic/metrics
 go 1.23.3
 
 require (
+	github.com/DATA-DOG/go-sqlmock v1.5.2 // indirect
 	github.com/bytedance/sonic v1.11.6 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/caarlos0/env/v10 v10.0.0 // indirect
