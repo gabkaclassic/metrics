@@ -38,7 +38,7 @@ func run() error {
 	var metricsRepository repository.MetricsRepository
 	var dumper *dump.Dumper
 
-	if cfg.DB.Enable {
+	if cfg.DB.Enable || len(cfg.DB.DSN) > 0 {
 		storage, err := storage.NewDBStorage(cfg.DB)
 
 		if err != nil {

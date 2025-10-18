@@ -26,7 +26,8 @@ type (
 		Database string `env:"DB_NAME" envDefault:"metrics"`
 		Driver   string `env:"DB_DRIVER" envDefault:"postgres"`
 		SSL      string `env:"DB_SSL" envDefault:"disable"`
-		Enable   bool   `env:"DB_ENABLE" envDefault:"true"`
+		Enable   bool   `env:"DB_ENABLE" envDefault:"false"`
+		DSN      string `env:"DATABASE_DSN"`
 	}
 	Agent struct {
 		PollInterval   time.Duration `env:"POLL_INTERVAL" envDefault:"2"`
@@ -103,6 +104,7 @@ func ParseServerConfig() (*Server, error) {
 	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
 	dbSSL := flag.String("db-ssl", cfg.DB.SSL, "Database SSL mode (enable/disable)")
 	dbEnable := flag.Bool("db-enable", cfg.DB.Enable, "Database mode on")
+	dbDSN := flag.String("db-dsn", cfg.DB.DSN, "DSN")
 
 	flag.Parse()
 
@@ -143,6 +145,8 @@ func ParseServerConfig() (*Server, error) {
 			cfg.DB.SSL = *dbSSL
 		case "db-enable":
 			cfg.DB.Enable = *dbEnable
+		case "db-dsn":
+			cfg.DB.DSN = *dbDSN
 		}
 	})
 

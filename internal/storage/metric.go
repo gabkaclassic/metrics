@@ -20,12 +20,19 @@ func NewMemStorage() *MemStorage {
 }
 
 func NewDBStorage(cfg config.DB) (*sql.DB, error) {
-	connection, err := sql.Open(
-		cfg.Driver,
-		fmt.Sprintf(
+	var connectionString string
+
+	if len(cfg.DSN) > 0 {
+		connectionString = cfg.DSN
+	} else {
+		connectionString = fmt.Sprintf(
 			"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database, cfg.SSL,
-		),
+		)
+	}
+	connection, err := sql.Open(
+		cfg.Driver,
+		connectionString,
 	)
 
 	if err != nil {
