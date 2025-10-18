@@ -16,6 +16,17 @@ type (
 		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
 		Log     Log
 		Dump    Dump
+		DB      DB
+	}
+	DB struct {
+		User     string `env:"DB_USER" envDefault:"user"`
+		Password string `env:"DB_PASSWORD" envDefault:"password"`
+		Host     string `env:"DB_HOST" envDefault:"localhost"`
+		Port     uint   `env:"DB_PORT" envDefault:"5432"`
+		Database string `env:"DB_NAME" envDefault:"metrics"`
+		Driver   string `env:"DB_DRIVER" envDefault:"postgres"`
+		SSL      string `env:"DB_SSL" envDefault:"disable"`
+		Enable   bool   `env:"DB_ENABLE" envDefault:"true"`
 	}
 	Agent struct {
 		PollInterval   time.Duration `env:"POLL_INTERVAL" envDefault:"2"`
@@ -84,18 +95,29 @@ func ParseServerConfig() (*Server, error) {
 	fileStoragePath := flag.String("f", cfg.Dump.FileStoragePath, "File storate path")
 	restore := flag.Bool("r", cfg.Dump.Restore, "Restore need")
 
+	dbHost := flag.String("db-host", cfg.DB.Host, "Database host")
+	dbPort := flag.Uint("db-port", cfg.DB.Port, "Database port")
+	dbUser := flag.String("db-user", cfg.DB.User, "Database user")
+	dbPassword := flag.String("db-password", cfg.DB.Password, "Database password")
+	db := flag.String("db-name", cfg.DB.Database, "Database name")
+	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
+	dbSSL := flag.String("db-ssl", cfg.DB.SSL, "Database SSL mode (enable/disable)")
+	dbEnable := flag.Bool("db-enable", cfg.DB.Enable, "Database mode on")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "a":
 			cfg.Address = *address
+
 		case "i":
 			cfg.Dump.StoreInterval = time.Duration(*storeInterval) * time.Second
 		case "f":
 			cfg.Dump.FileStoragePath = *fileStoragePath
 		case "r":
 			cfg.Dump.Restore = *restore
+
 		case "log-level":
 			cfg.Log.Level = *logLevel
 		case "log-file":
@@ -104,6 +126,23 @@ func ParseServerConfig() (*Server, error) {
 			cfg.Log.Console = *logConsole
 		case "log-json":
 			cfg.Log.JSON = *logJSON
+
+		case "db":
+			cfg.DB.Database = *db
+		case "db-host":
+			cfg.DB.Host = *dbHost
+		case "db-port":
+			cfg.DB.Port = *dbPort
+		case "db-user":
+			cfg.DB.User = *dbUser
+		case "db-password":
+			cfg.DB.Password = *dbPassword
+		case "db-driver":
+			cfg.DB.Driver = *dbDriver
+		case "db-ssl":
+			cfg.DB.SSL = *dbSSL
+		case "db-enable":
+			cfg.DB.Enable = *dbEnable
 		}
 	})
 
