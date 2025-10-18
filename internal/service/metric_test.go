@@ -425,14 +425,16 @@ func TestMetricsService_SaveStruct(t *testing.T) {
 
 func TestMetricsService_GetAll(t *testing.T) {
 	tests := []struct {
-		name       string
-		mockReturn *map[string]any
-		expected   map[string]any
+		name          string
+		mockReturn    *map[string]any
+		expected      map[string]any
+		expectedError error
 	}{
 		{
-			name:       "empty repository",
-			mockReturn: &map[string]any{},
-			expected:   map[string]any{},
+			name:          "empty repository",
+			mockReturn:    &map[string]any{},
+			expected:      map[string]any{},
+			expectedError: nil,
 		},
 		{
 			name: "repository with metrics",
@@ -444,11 +446,19 @@ func TestMetricsService_GetAll(t *testing.T) {
 				"c1": int64(10),
 				"g1": float64(3.14),
 			},
+			expectedError: nil,
 		},
 		{
-			name:       "repository returns nil",
-			mockReturn: nil,
-			expected:   nil,
+			name:          "repository returns nil",
+			mockReturn:    nil,
+			expected:      nil,
+			expectedError: nil,
+		},
+		{
+			name:          "repository returns error",
+			mockReturn:    nil,
+			expected:      nil,
+			expectedError: errors.New("some error"),
 		},
 	}
 
@@ -457,12 +467,18 @@ func TestMetricsService_GetAll(t *testing.T) {
 			mockRepo := repository.NewMockMetricsRepository(t)
 			mockRepo.EXPECT().
 				GetAll().
-				Return(tt.mockReturn)
+				Return(tt.mockReturn, tt.expectedError)
 
 			svc, err := NewMetricsService(mockRepo)
 			assert.NoError(t, err)
 
-			result := svc.GetAll()
+			result, err := svc.GetAll()
+
+			if tt.expectedError == nil {
+				assert.Nil(t, err)
+			} else {
+				assert.Error(t, err)
+			}
 
 			if tt.expected == nil {
 				assert.Nil(t, result)

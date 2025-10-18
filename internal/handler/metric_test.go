@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+
 	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/service"
 	"github.com/stretchr/testify/mock"
-	"net/http"
-	"net/http/httptest"
 
 	"fmt"
 	"io"
@@ -346,16 +348,19 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 		name           string
 		mockReturn     *map[string]any
 		expectedStatus int
+		expectedError  *api.APIError
 	}{
 		{
 			name:           "nil metrics",
 			mockReturn:     nil,
 			expectedStatus: http.StatusNotFound,
+			expectedError:  nil,
 		},
 		{
 			name:           "empty metrics",
 			mockReturn:     &map[string]any{},
 			expectedStatus: http.StatusOK,
+			expectedError:  nil,
 		},
 		{
 			name: "metrics with values",
@@ -364,13 +369,20 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 				"g1": float64(3.14),
 			},
 			expectedStatus: http.StatusOK,
+			expectedError:  nil,
+		},
+		{
+			name:           "return error",
+			mockReturn:     nil,
+			expectedStatus: http.StatusInternalServerError,
+			expectedError:  api.Internal("some error", errors.New("some error")),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := service.NewMockMetricsService(t)
-			mockService.EXPECT().GetAll().Return(tt.mockReturn)
+			mockService.EXPECT().GetAll().Return(tt.mockReturn, tt.expectedError)
 
 			handler, err := NewMetricsHandler(mockService)
 			assert.NoError(t, err)
@@ -388,7 +400,9 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 
 			bodyStr := string(body)
 			if tt.mockReturn == nil {
-				assert.Contains(t, bodyStr, "Metrics not found")
+				if tt.expectedError == nil {
+					assert.Contains(t, bodyStr, "Metrics not found")
+				}
 			} else {
 				for id, val := range *tt.mockReturn {
 					assert.Contains(t, bodyStr, id)

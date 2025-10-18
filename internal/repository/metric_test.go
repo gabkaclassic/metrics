@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewMetricsRepository(t *testing.T) {
+func TestNewMemoryMetricsRepository(t *testing.T) {
 	tests := []struct {
 		name        string
 		storage     *storage.MemStorage
@@ -31,7 +31,7 @@ func TestNewMetricsRepository(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo, err := NewMetricsRepository(tt.storage, &sync.RWMutex{})
+			repo, err := NewMemoryMetricsRepository(tt.storage, &sync.RWMutex{})
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -48,7 +48,7 @@ func TestMetricsRepository_Get(t *testing.T) {
 	st := storage.NewMemStorage()
 	st.Metrics["existing"] = models.Metrics{ID: "existing", Value: floatPtr(42)}
 
-	repo, err := NewMetricsRepository(st, &sync.RWMutex{})
+	repo, err := NewMemoryMetricsRepository(st, &sync.RWMutex{})
 
 	assert.NoError(t, err)
 
@@ -89,7 +89,7 @@ func TestMetricsRepository_Get(t *testing.T) {
 
 func TestMetricsRepository_updateMetric(t *testing.T) {
 	storage := storage.NewMemStorage()
-	repo := &metricsRepository{storage: storage, mutex: &sync.RWMutex{}}
+	repo := &memoryMetricsRepository{storage: storage, mutex: &sync.RWMutex{}}
 
 	tests := []struct {
 		name        string
@@ -156,7 +156,7 @@ func TestMetricsRepository_Add(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			memStorage := storage.NewMemStorage()
-			repo, err := NewMetricsRepository(memStorage, &sync.RWMutex{})
+			repo, err := NewMemoryMetricsRepository(memStorage, &sync.RWMutex{})
 			assert.NoError(t, err)
 
 			for _, m := range tt.initialMetrics {
@@ -177,7 +177,7 @@ func TestMetricsRepository_Add(t *testing.T) {
 
 func TestMetricsRepository_Reset(t *testing.T) {
 	storage := storage.NewMemStorage()
-	repo, err := NewMetricsRepository(storage, &sync.RWMutex{})
+	repo, err := NewMemoryMetricsRepository(storage, &sync.RWMutex{})
 
 	assert.NoError(t, err)
 
@@ -280,9 +280,9 @@ func TestMetricsRepository_GetAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			st := storage.NewMemStorage()
 			st.Metrics = tt.initialMetrics
-			repo := &metricsRepository{storage: st}
+			repo := &memoryMetricsRepository{storage: st}
 
-			result := repo.GetAll()
+			result, _ := repo.GetAll()
 
 			assert.NotNil(t, result)
 			assert.Equal(t, tt.expected, *result)
