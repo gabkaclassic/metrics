@@ -21,6 +21,9 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 		middleware.Decompress(),
 	)
 
+	// Ping endpoint
+	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {})
+
 	setupMetricsRouter(router, config.MetricsHandler)
 
 	return router
