@@ -133,7 +133,13 @@ func (handler *MetricsHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
-	metrics := handler.service.GetAll()
+	metrics, err := handler.service.GetAll()
+
+	if err != nil {
+		api.RespondError(w, err)
+		return
+	}
+
 	if metrics == nil {
 		api.RespondError(
 			w,
@@ -147,7 +153,10 @@ func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := metricsTemplate.Execute(w, data); err != nil {
-		http.Error(w, "failed to render template", http.StatusInternalServerError)
+		api.RespondError(
+			w,
+			api.Internal("failed to render template", err),
+		)
 		return
 	}
 }
