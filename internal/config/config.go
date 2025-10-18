@@ -104,7 +104,7 @@ func ParseServerConfig() (*Server, error) {
 	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
 	dbSSL := flag.String("db-ssl", cfg.DB.SSL, "Database SSL mode (enable/disable)")
 	dbEnable := flag.Bool("db-enable", cfg.DB.Enable, "Database mode on")
-	dbDSN := flag.String("db-dsn", cfg.DB.DSN, "DSN")
+	dbDSN := flag.String("d", cfg.DB.DSN, "DSN")
 
 	flag.Parse()
 
@@ -145,7 +145,7 @@ func ParseServerConfig() (*Server, error) {
 			cfg.DB.SSL = *dbSSL
 		case "db-enable":
 			cfg.DB.Enable = *dbEnable
-		case "db-dsn":
+		case "d":
 			cfg.DB.DSN = *dbDSN
 		}
 	})
