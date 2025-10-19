@@ -37,6 +37,7 @@ func run() error {
 
 	var metricsRepository repository.MetricsRepository
 	var dumper *dump.Dumper
+	var dumperEnabled bool
 
 	if cfg.DB.Enable || len(cfg.DB.DSN) > 0 {
 		storage, err := storage.NewDBStorage(cfg.DB)
@@ -47,6 +48,9 @@ func run() error {
 		defer storage.Close()
 
 		metricsRepository, err = repository.NewDBMetricsRepository(storage)
+		if err != nil {
+			return err
+		}
 	} else {
 		storage := storage.NewMemStorage()
 		storageMutex := &sync.RWMutex{}
@@ -56,16 +60,15 @@ func run() error {
 		if err != nil {
 			return err
 		}
-
+		dumperEnabled = true
 		defer dumper.Close()
 
 		readDump(cfg.Dump, dumper)
 
 		metricsRepository, err = repository.NewMemoryMetricsRepository(storage, storageMutex)
-	}
-
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	router, err := setupRouter(&metricsRepository)
@@ -82,7 +85,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if dumper != nil {
+	if dumperEnabled {
 		go dumper.StartDumper(ctx, cfg.Dump)
 	}
 	go server.Run(ctx, stop)
