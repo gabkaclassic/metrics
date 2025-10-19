@@ -87,6 +87,29 @@ func (handler *MetricsHandler) SaveJSON(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+func (handler *MetricsHandler) SaveAll(w http.ResponseWriter, r *http.Request) {
+	metrics := make([]models.Metrics, 0)
+	err := json.NewDecoder(r.Body).Decode(&metrics)
+	if err != nil {
+		api.RespondError(w, api.UnprocessibleEntity("Invalid input JSON"))
+		return
+	}
+
+	saveErr := handler.service.SaveAll(&metrics)
+
+	if saveErr != nil {
+		api.RespondError(w, saveErr)
+		return
+	}
+
+	// encodeErr := json.NewEncoder(w).Encode(metrics)
+
+	// if encodeErr != nil {
+	// 	api.RespondError(w, encodeErr)
+	// 	return
+	// }
+}
+
 func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	metricID := r.PathValue("id")

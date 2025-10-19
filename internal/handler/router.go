@@ -54,6 +54,17 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		),
 	)
 	router.Post(
+		"/updates/",
+		middleware.Wrap(
+			http.HandlerFunc(handler.SaveAll),
+			middleware.RequireContentType(middleware.JSON),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
+			middleware.WithContentType(middleware.JSON),
+		),
+	)
+	router.Post(
 		"/value/",
 		middleware.Wrap(
 			http.HandlerFunc(handler.GetJSON),
