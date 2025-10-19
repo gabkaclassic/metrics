@@ -137,29 +137,57 @@ func (service *metricsService) SaveStruct(metric models.Metrics) *api.APIError {
 }
 
 func (service *metricsService) SaveAll(metrics *[]models.Metrics) *api.APIError {
-
-	gauges := make([]models.Metrics, 0)
-	counters := make([]models.Metrics, 0)
+	counterSums := make(map[string]int64)
+	gaugeLastValues := make(map[string]float64)
 
 	for _, metric := range *metrics {
 		switch metric.MType {
 		case models.Counter:
-			counters = append(counters, metric)
+			if metric.Delta != nil {
+				counterSums[metric.ID] += *metric.Delta
+			}
 		case models.Gauge:
-			gauges = append(gauges, metric)
+			if metric.Value != nil {
+				gaugeLastValues[metric.ID] = *metric.Value
+			}
 		default:
 			return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metric.MType))
 		}
 	}
 
+	counters := make([]models.Metrics, 0, len(counterSums))
+	for id, delta := range counterSums {
+		deltaCopy := delta
+		counters = append(counters, models.Metrics{
+			ID:    id,
+			MType: models.Counter,
+			Delta: &deltaCopy,
+		})
+	}
+
+	gauges := make([]models.Metrics, 0, len(gaugeLastValues))
+	for id, value := range gaugeLastValues {
+		valueCopy := value
+		gauges = append(gauges, models.Metrics{
+			ID:    id,
+			MType: models.Gauge,
+			Value: &valueCopy,
+		})
+	}
+
 	errChan := make(chan error, 2)
 
-	go func() {
-		errChan <- service.repository.AddAll(&counters)
-	}()
-	go func() {
-		errChan <- service.repository.ResetAll(&gauges)
-	}()
+	if len(counters) > 0 {
+		go func() { errChan <- service.repository.AddAll(&counters) }()
+	} else {
+		go func() { errChan <- nil }()
+	}
+
+	if len(gauges) > 0 {
+		go func() { errChan <- service.repository.ResetAll(&gauges) }()
+	} else {
+		go func() { errChan <- nil }()
+	}
 
 	err1 := <-errChan
 	err2 := <-errChan
