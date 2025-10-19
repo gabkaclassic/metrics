@@ -1,3 +1,0 @@
-ALTER TABLE IF EXISTS metric
-ALTER COLUMN "delta"
-TYPE bigint;
