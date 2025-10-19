@@ -121,6 +121,118 @@ func TestMetricsHandler_Save(t *testing.T) {
 	}
 }
 
+func TestMetricsHandler_SaveAll(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		requestBody    string
+		mockSaveAll    func(metrics *[]models.Metrics) *api.APIError
+		expectStatus   int
+		expectErrorMsg string
+	}{
+		{
+			name:   "valid POST with counter metrics",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "c1", "type": "counter", "delta": 10},
+				{"id": "c2", "type": "counter", "delta": 5}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 2)
+				assert.Equal(t, "c1", (*metrics)[0].ID)
+				assert.Equal(t, models.Counter, (*metrics)[0].MType)
+				assert.Equal(t, int64(10), *(*metrics)[0].Delta)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:   "valid POST with gauge metrics",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "g1", "type": "gauge", "value": 3.14},
+				{"id": "g2", "type": "gauge", "value": 2.71}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 2)
+				assert.Equal(t, "g1", (*metrics)[0].ID)
+				assert.Equal(t, models.Gauge, (*metrics)[0].MType)
+				assert.Equal(t, 3.14, *(*metrics)[0].Value)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:   "valid POST with mixed metrics",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "c1", "type": "counter", "delta": 10},
+				{"id": "g1", "type": "gauge", "value": 3.14}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 2)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:        "empty metrics array",
+			method:      http.MethodPost,
+			requestBody: `[]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 0)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:           "invalid JSON",
+			method:         http.MethodPost,
+			requestBody:    `invalid json`,
+			mockSaveAll:    func(metrics *[]models.Metrics) *api.APIError { return nil },
+			expectStatus:   http.StatusUnprocessableEntity,
+			expectErrorMsg: "Invalid input JSON",
+		},
+		{
+			name:   "service returns error",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "c1", "type": "counter", "delta": 10}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				return api.Internal("save error", errors.New("some error"))
+			},
+			expectStatus:   http.StatusInternalServerError,
+			expectErrorMsg: "save error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := service.NewMockMetricsService(t)
+			if tt.expectStatus != http.StatusUnprocessableEntity {
+				mockService.EXPECT().
+					SaveAll(mock.Anything).
+					RunAndReturn(tt.mockSaveAll)
+			}
+
+			handler, err := NewMetricsHandler(mockService)
+			assert.NoError(t, err)
+
+			req := httptest.NewRequest(tt.method, "/", strings.NewReader(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+
+			handler.SaveAll(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			if tt.expectErrorMsg != "" {
+				assert.Contains(t, rr.Body.String(), tt.expectErrorMsg)
+			}
+		})
+	}
+}
+
 func TestMetricsHandler_SaveJSON(t *testing.T) {
 	tests := []struct {
 		name              string

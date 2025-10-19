@@ -101,13 +101,6 @@ func (handler *MetricsHandler) SaveAll(w http.ResponseWriter, r *http.Request) {
 		api.RespondError(w, saveErr)
 		return
 	}
-
-	// encodeErr := json.NewEncoder(w).Encode(metrics)
-
-	// if encodeErr != nil {
-	// 	api.RespondError(w, encodeErr)
-	// 	return
-	// }
 }
 
 func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
