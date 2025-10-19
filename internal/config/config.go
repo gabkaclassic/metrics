@@ -34,6 +34,7 @@ type (
 		ReportInterval time.Duration `env:"REPORT_INTERVAL" envDefault:"10"`
 		Client         Client
 		Log            Log
+		BatchesEnabled bool `env:"BATCHES" envDefault:"true"`
 	}
 	Client struct {
 		BaseURL string        `env:"ADDRESS" envDefault:"localhost:8080"`
@@ -167,6 +168,7 @@ func ParseAgentConfig() (*Agent, error) {
 	serverAddress := flag.String("a", cfg.Client.BaseURL, "Server HTTP base URL")
 	retries := flag.Int("report-retries", cfg.Client.Retries, "Max update metrics retries")
 	timeout := flag.Uint("report-timeout", uint(cfg.Client.Timeout.Seconds()), "Metrics update timeout (seconds)")
+	batchesEnabled := flag.Bool("batches-enabled", cfg.BatchesEnabled, "Batches using enabled")
 
 	logLevel := flag.String("log-level", cfg.Log.Level, "Logging level")
 	logFile := flag.String("log-file", cfg.Log.File, "Log file path")
@@ -195,6 +197,8 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.Log.Console = *logConsole
 		case "log-json":
 			cfg.Log.JSON = *logJSON
+		case "batches-enabled":
+			cfg.BatchesEnabled = *batchesEnabled
 		}
 	})
 
