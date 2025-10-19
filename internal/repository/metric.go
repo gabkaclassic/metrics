@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/lib/pq"
 	"sync"
 
 	"github.com/gabkaclassic/metrics/internal/model"
@@ -13,6 +14,8 @@ import (
 
 type MetricsRepository interface {
 	Add(metric models.Metrics) error
+	AddAll(metrics *[]models.Metrics) error
+	ResetAll(metrics *[]models.Metrics) error
 	Reset(metric models.Metrics) error
 	Get(metricID string) (*models.Metrics, error)
 	GetAll() (*map[string]any, error)
@@ -74,6 +77,18 @@ func (repository *memoryMetricsRepository) updateMetric(metric models.Metrics, u
 
 	return err
 }
+func (repository *memoryMetricsRepository) updateMetrics(metrics *[]models.Metrics, updateMetricsFunction func(metric *[]models.Metrics) error) error {
+	repository.mutex.Lock()
+	defer repository.mutex.Unlock()
+
+	if repository.storage.Metrics == nil {
+		repository.storage.Metrics = make(map[string]models.Metrics)
+	}
+
+	err := updateMetricsFunction(metrics)
+
+	return err
+}
 
 func (repository *memoryMetricsRepository) Add(metric models.Metrics) error {
 
@@ -92,6 +107,25 @@ func (repository *memoryMetricsRepository) Add(metric models.Metrics) error {
 	return err
 }
 
+func (repository *memoryMetricsRepository) AddAll(metrics *[]models.Metrics) error {
+
+	err := repository.updateMetrics(
+		metrics,
+		func(metrics *[]models.Metrics) error {
+			for _, metric := range *metrics {
+				if savedMetric, exists := repository.storage.Metrics[metric.ID]; exists {
+					*savedMetric.Delta = *(savedMetric.Delta) + *(metric.Delta)
+				} else {
+					repository.storage.Metrics[metric.ID] = metric
+				}
+			}
+			return nil
+		},
+	)
+
+	return err
+}
+
 func (repository *memoryMetricsRepository) Reset(metric models.Metrics) error {
 
 	err := repository.updateMetric(
@@ -101,6 +135,25 @@ func (repository *memoryMetricsRepository) Reset(metric models.Metrics) error {
 				*savedMetric.Value = *(metric.Value)
 			} else {
 				repository.storage.Metrics[metric.ID] = metric
+			}
+			return nil
+		},
+	)
+
+	return err
+}
+
+func (repository *memoryMetricsRepository) ResetAll(metrics *[]models.Metrics) error {
+
+	err := repository.updateMetrics(
+		metrics,
+		func(metrics *[]models.Metrics) error {
+			for _, metric := range *metrics {
+				if savedMetric, exists := repository.storage.Metrics[metric.ID]; exists {
+					*savedMetric.Value = *(metric.Value)
+				} else {
+					repository.storage.Metrics[metric.ID] = metric
+				}
 			}
 			return nil
 		},
@@ -198,6 +251,37 @@ func (repository *dbMetricsRepository) Add(metric models.Metrics) error {
 	return tx.Commit()
 }
 
+func (repository *dbMetricsRepository) AddAll(metrics *[]models.Metrics) error {
+
+	tx, err := repository.storage.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	ids := make([]string, len(*metrics))
+	deltas := make([]int64, len(*metrics))
+
+	for i, metric := range *metrics {
+		ids[i] = metric.ID
+		deltas[i] = *metric.Delta
+	}
+
+	_, err = tx.Exec(`
+        INSERT INTO metric (id, type, delta)
+        SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
+        ON CONFLICT (id) DO UPDATE 
+        SET delta = metric.delta + EXCLUDED.delta
+    ;`, pq.Array(ids), pq.Array(deltas))
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (repository *dbMetricsRepository) Reset(metric models.Metrics) error {
 
 	tx, err := repository.storage.Begin()
@@ -214,6 +298,37 @@ func (repository *dbMetricsRepository) Reset(metric models.Metrics) error {
 		DO UPDATE SET value = EXCLUDED.value;`,
 		metric.ID, metric.Value,
 	)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+func (repository *dbMetricsRepository) ResetAll(metrics *[]models.Metrics) error {
+
+	tx, err := repository.storage.Begin()
+	if err != nil {
+		return err
+	}
+
+	defer tx.Rollback()
+
+	ids := make([]string, len(*metrics))
+	values := make([]float64, len(*metrics))
+
+	for i, metric := range *metrics {
+		ids[i] = metric.ID
+		values[i] = *metric.Value
+	}
+
+	_, err = tx.Exec(`
+        INSERT INTO metric (id, type, delta)
+        SELECT unnest($1::text[]), 'gauge', unnest($2::bigint[])
+        ON CONFLICT (id) DO UPDATE 
+        SET value = EXCLUDED.value;
+    ;`, pq.Array(ids), pq.Array(values))
 
 	if err != nil {
 		return err
