@@ -124,15 +124,19 @@ func (service *metricsService) Save(id string, metricType string, rawValue strin
 
 func (service *metricsService) SaveStruct(metric models.Metrics) *api.APIError {
 
+	var err error
 	switch metric.MType {
 	case models.Counter:
-		service.repository.Add(metric)
+		err = service.repository.Add(metric)
 	case models.Gauge:
-		service.repository.Reset(metric)
+		err = service.repository.Reset(metric)
 	default:
 		return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metric.MType))
 	}
 
+	if err != nil {
+		return api.Internal("save metric error", err)
+	}
 	return nil
 }
 

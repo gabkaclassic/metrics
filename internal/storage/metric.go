@@ -79,7 +79,6 @@ func runMigrations(db *sql.DB, cfg config.DB) error {
 	if err != nil {
 		return err
 	}
-	defer m.Close()
 
 	err = m.Up()
 	if err != nil && err != migrate.ErrNoChange {
