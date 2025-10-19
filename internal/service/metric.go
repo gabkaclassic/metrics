@@ -15,6 +15,7 @@ type MetricsService interface {
 	GetStruct(metricID string, metricType string) (*models.Metrics, *api.APIError)
 	Save(id string, metricType string, rawValue string) *api.APIError
 	SaveStruct(metric models.Metrics) *api.APIError
+	SaveAll(metrics *[]models.Metrics) *api.APIError
 	GetAll() (*map[string]any, *api.APIError)
 }
 
@@ -130,6 +131,41 @@ func (service *metricsService) SaveStruct(metric models.Metrics) *api.APIError {
 		service.repository.Reset(metric)
 	default:
 		return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metric.MType))
+	}
+
+	return nil
+}
+
+func (service *metricsService) SaveAll(metrics *[]models.Metrics) *api.APIError {
+
+	gauges := make([]models.Metrics, 0)
+	counters := make([]models.Metrics, 0)
+
+	for _, metric := range *metrics {
+		switch metric.MType {
+		case models.Counter:
+			counters = append(counters, metric)
+		case models.Gauge:
+			gauges = append(gauges, metric)
+		default:
+			return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metric.MType))
+		}
+	}
+
+	errChan := make(chan error, 2)
+
+	go func() {
+		errChan <- service.repository.AddAll(&counters)
+	}()
+	go func() {
+		errChan <- service.repository.ResetAll(&gauges)
+	}()
+
+	err1 := <-errChan
+	err2 := <-errChan
+
+	if err1 != nil || err2 != nil {
+		return api.Internal("save metrics error", fmt.Errorf("counters: %v, gauges: %v", err1, err2))
 	}
 
 	return nil
