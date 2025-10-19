@@ -324,8 +324,8 @@ func (repository *dbMetricsRepository) ResetAll(metrics *[]models.Metrics) error
 	}
 
 	_, err = tx.Exec(`
-        INSERT INTO metric (id, type, delta)
-        SELECT unnest($1::text[]), 'gauge', unnest($2::bigint[])
+        INSERT INTO metric (id, type, value)
+        SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
         ON CONFLICT (id) DO UPDATE 
         SET value = EXCLUDED.value;
     ;`, pq.Array(ids), pq.Array(values))
