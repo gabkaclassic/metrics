@@ -28,7 +28,6 @@ func main() {
 
 func run() error {
 	cfg, err := config.ParseServerConfig()
-
 	if err != nil {
 		return err
 	}
@@ -41,7 +40,6 @@ func run() error {
 
 	if cfg.DB.Enable || len(cfg.DB.DSN) > 0 {
 		storage, err := storage.NewDBStorage(cfg.DB)
-
 		if err != nil {
 			return err
 		}
@@ -51,15 +49,18 @@ func run() error {
 		if err != nil {
 			return err
 		}
+
+		slog.Info("Using database storage")
 	} else {
 		storage := storage.NewMemStorage()
 		storageMutex := &sync.RWMutex{}
 
-		dumper, err := dump.NewDumper(cfg.Dump.FileStoragePath, storage, storageMutex)
-
+		dumper, err = dump.NewDumper(cfg.Dump.FileStoragePath, storage, storageMutex)
 		if err != nil {
 			return err
 		}
+
+		slog.Info("Using file storage with dumper", "dump_file", cfg.Dump.FileStoragePath)
 		dumperEnabled = true
 		defer dumper.Close()
 
@@ -72,7 +73,6 @@ func run() error {
 	}
 
 	router, err := setupRouter(&metricsRepository)
-
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,9 @@ func run() error {
 
 	if dumperEnabled {
 		go dumper.StartDumper(ctx, cfg.Dump)
+		slog.Info("Dumper started")
 	}
+
 	go server.Run(ctx, stop)
 
 	<-ctx.Done()
