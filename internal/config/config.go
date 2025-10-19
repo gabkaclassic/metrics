@@ -19,15 +19,16 @@ type (
 		DB      DB
 	}
 	DB struct {
-		User     string `env:"DB_USER" envDefault:"user"`
-		Password string `env:"DB_PASSWORD" envDefault:"password"`
-		Host     string `env:"DB_HOST" envDefault:"localhost"`
-		Port     uint   `env:"DB_PORT" envDefault:"5432"`
-		Database string `env:"DB_NAME" envDefault:"metrics"`
-		Driver   string `env:"DB_DRIVER" envDefault:"postgres"`
-		SSL      string `env:"DB_SSL" envDefault:"disable"`
-		Enable   bool   `env:"DB_ENABLE" envDefault:"false"`
-		DSN      string `env:"DATABASE_DSN"`
+		User           string `env:"DB_USER" envDefault:"user"`
+		Password       string `env:"DB_PASSWORD" envDefault:"password"`
+		Host           string `env:"DB_HOST" envDefault:"localhost"`
+		Port           uint   `env:"DB_PORT" envDefault:"5432"`
+		Database       string `env:"DB_NAME" envDefault:"metrics"`
+		Driver         string `env:"DB_DRIVER" envDefault:"postgres"`
+		SSL            string `env:"DB_SSL" envDefault:"disable"`
+		Enable         bool   `env:"DB_ENABLE" envDefault:"false"`
+		DSN            string `env:"DATABASE_DSN"`
+		MigrationsPath string `env:"DB_MIGRATIONS_PATH" envDefault:"./migrations"`
 	}
 	Agent struct {
 		PollInterval   time.Duration `env:"POLL_INTERVAL" envDefault:"2"`
@@ -106,6 +107,7 @@ func ParseServerConfig() (*Server, error) {
 	dbSSL := flag.String("db-ssl", cfg.DB.SSL, "Database SSL mode (enable/disable)")
 	dbEnable := flag.Bool("db-enable", cfg.DB.Enable, "Database mode on")
 	dbDSN := flag.String("d", cfg.DB.DSN, "DSN")
+	dbMigrationsPath := flag.String("db-migrations-path", cfg.DB.MigrationsPath, "Migrations file path")
 
 	flag.Parse()
 
@@ -148,6 +150,8 @@ func ParseServerConfig() (*Server, error) {
 			cfg.DB.Enable = *dbEnable
 		case "d":
 			cfg.DB.DSN = *dbDSN
+		case "db-migrations-path":
+			cfg.DB.MigrationsPath = *dbMigrationsPath
 		}
 	})
 
