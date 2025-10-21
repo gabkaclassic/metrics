@@ -239,7 +239,8 @@ func (repository *dbMetricsRepository) executeWithRetry(operation func() error) 
 		}
 
 		if i < retriesAmount-1 {
-			time.Sleep(currentRetryDelay)
+			timer := time.NewTimer(currentRetryDelay)
+			<-timer.C
 			currentRetryDelay *= 2
 		}
 	}
