@@ -1,6 +1,6 @@
 module github.com/gabkaclassic/metrics
 
-go 1.23.3
+go 1.24
 
 require (
 	cel.dev/expr v0.16.0 // indirect
