@@ -220,11 +220,21 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		responseBody, _ := io.ReadAll(resp.Body)
+		responseBody, err := io.ReadAll(resp.Body)
+
+		if err != nil {
+			return err
+		}
+
 		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(responseBody))
 	}
 
-	responseBody, _ := io.ReadAll(resp.Body)
+	responseBody, err := io.ReadAll(resp.Body)
+
+	if err != nil {
+		return err
+	}
+
 	slog.Info("Request completed successfully",
 		slog.String("endpoint", endpoint),
 		slog.String("response", string(responseBody)),
