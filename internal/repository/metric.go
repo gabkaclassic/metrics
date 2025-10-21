@@ -226,7 +226,8 @@ func (repository *dbMetricsRepository) Get(metricID string) (*models.Metrics, er
 		m := models.Metrics{}
 		err := repository.storage.QueryRow(
 			"SELECT id, type, delta, value FROM metric WHERE id = $1",
-			metricID).
+			metricID,
+		).
 			Scan(&m.ID, &m.MType, &m.Delta, &m.Value)
 
 		if err != nil {
