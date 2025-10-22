@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -30,10 +31,7 @@ func NewDBStorage(cfg config.DB) (*sql.DB, error) {
 	if len(cfg.DSN) > 0 {
 		connectionString = cfg.DSN
 	} else {
-		connectionString = fmt.Sprintf(
-			"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database, cfg.SSL,
-		)
+		return nil, errors.New("DSN is required")
 	}
 	connection, err := sql.Open(
 		cfg.Driver,

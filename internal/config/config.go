@@ -19,14 +19,7 @@ type (
 		DB      DB
 	}
 	DB struct {
-		User           string `env:"DB_USER" envDefault:"user"`
-		Password       string `env:"DB_PASSWORD" envDefault:"password"`
-		Host           string `env:"DB_HOST" envDefault:"localhost"`
-		Port           uint   `env:"DB_PORT" envDefault:"5432"`
-		Database       string `env:"DB_NAME" envDefault:"metrics"`
 		Driver         string `env:"DB_DRIVER" envDefault:"postgres"`
-		SSL            string `env:"DB_SSL" envDefault:"disable"`
-		Enable         bool   `env:"DB_ENABLE" envDefault:"false"`
 		DSN            string `env:"DATABASE_DSN"`
 		MigrationsPath string `env:"DB_MIGRATIONS_PATH" envDefault:"./migrations"`
 	}
@@ -98,15 +91,8 @@ func ParseServerConfig() (*Server, error) {
 	fileStoragePath := flag.String("f", cfg.Dump.FileStoragePath, "File storate path")
 	restore := flag.Bool("r", cfg.Dump.Restore, "Restore need")
 
-	dbHost := flag.String("db-host", cfg.DB.Host, "Database host")
-	dbPort := flag.Uint("db-port", cfg.DB.Port, "Database port")
-	dbUser := flag.String("db-user", cfg.DB.User, "Database user")
-	dbPassword := flag.String("db-password", cfg.DB.Password, "Database password")
-	db := flag.String("db-name", cfg.DB.Database, "Database name")
-	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
-	dbSSL := flag.String("db-ssl", cfg.DB.SSL, "Database SSL mode (enable/disable)")
-	dbEnable := flag.Bool("db-enable", cfg.DB.Enable, "Database mode on")
 	dbDSN := flag.String("d", cfg.DB.DSN, "DSN")
+	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
 	dbMigrationsPath := flag.String("db-migrations-path", cfg.DB.MigrationsPath, "Migrations file path")
 
 	flag.Parse()
@@ -132,22 +118,8 @@ func ParseServerConfig() (*Server, error) {
 		case "log-json":
 			cfg.Log.JSON = *logJSON
 
-		case "db":
-			cfg.DB.Database = *db
-		case "db-host":
-			cfg.DB.Host = *dbHost
-		case "db-port":
-			cfg.DB.Port = *dbPort
-		case "db-user":
-			cfg.DB.User = *dbUser
-		case "db-password":
-			cfg.DB.Password = *dbPassword
 		case "db-driver":
 			cfg.DB.Driver = *dbDriver
-		case "db-ssl":
-			cfg.DB.SSL = *dbSSL
-		case "db-enable":
-			cfg.DB.Enable = *dbEnable
 		case "d":
 			cfg.DB.DSN = *dbDSN
 		case "db-migrations-path":

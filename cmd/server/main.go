@@ -38,7 +38,7 @@ func run() error {
 	var dumper *dump.Dumper
 	var dumperEnabled bool
 
-	if cfg.DB.Enable || len(cfg.DB.DSN) > 0 {
+	if len(cfg.DB.DSN) > 0 {
 		storage, err := storage.NewDBStorage(cfg.DB)
 		if err != nil {
 			return err
