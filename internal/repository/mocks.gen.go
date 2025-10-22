@@ -255,6 +255,61 @@ func (_c *MockMetricsRepository_GetAll_Call) RunAndReturn(run func() (*map[strin
 	return _c
 }
 
+// GetAllMetrics provides a mock function for the type MockMetricsRepository
+func (_mock *MockMetricsRepository) GetAllMetrics() (*[]models.Metrics, error) {
+	ret := _mock.Called()
+
+	if len(ret) == 0 {
+		panic("no return value specified for GetAllMetrics")
+	}
+
+	var r0 *[]models.Metrics
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func() (*[]models.Metrics, error)); ok {
+		return returnFunc()
+	}
+	if returnFunc, ok := ret.Get(0).(func() *[]models.Metrics); ok {
+		r0 = returnFunc()
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*[]models.Metrics)
+		}
+	}
+	if returnFunc, ok := ret.Get(1).(func() error); ok {
+		r1 = returnFunc()
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// MockMetricsRepository_GetAllMetrics_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAllMetrics'
+type MockMetricsRepository_GetAllMetrics_Call struct {
+	*mock.Call
+}
+
+// GetAllMetrics is a helper method to define mock.On call
+func (_e *MockMetricsRepository_Expecter) GetAllMetrics() *MockMetricsRepository_GetAllMetrics_Call {
+	return &MockMetricsRepository_GetAllMetrics_Call{Call: _e.mock.On("GetAllMetrics")}
+}
+
+func (_c *MockMetricsRepository_GetAllMetrics_Call) Run(run func()) *MockMetricsRepository_GetAllMetrics_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockMetricsRepository_GetAllMetrics_Call) Return(metricss *[]models.Metrics, err error) *MockMetricsRepository_GetAllMetrics_Call {
+	_c.Call.Return(metricss, err)
+	return _c
+}
+
+func (_c *MockMetricsRepository_GetAllMetrics_Call) RunAndReturn(run func() (*[]models.Metrics, error)) *MockMetricsRepository_GetAllMetrics_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // Reset provides a mock function for the type MockMetricsRepository
 func (_mock *MockMetricsRepository) Reset(metric models.Metrics) error {
 	ret := _mock.Called(metric)

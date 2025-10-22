@@ -5,41 +5,41 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 
 	"github.com/gabkaclassic/metrics/internal/model"
-	"github.com/gabkaclassic/metrics/internal/storage"
+	"github.com/gabkaclassic/metrics/internal/repository"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewDumper(t *testing.T) {
 	tests := []struct {
-		name     string
-		filePath string
-		storage  *storage.MemStorage
-		wantErr  error
-		wantNil  bool
+		name       string
+		filePath   string
+		repository repository.MetricsRepository
+		wantErr    error
+		wantNil    bool
 	}{
 		{
-			name:     "valid storage",
-			filePath: "/tmp/test.json",
-			storage:  storage.NewMemStorage(),
-			wantErr:  nil,
-			wantNil:  false,
+			name:       "valid repository",
+			filePath:   "/tmp/test.json",
+			repository: repository.NewMockMetricsRepository(t),
+			wantErr:    nil,
+			wantNil:    false,
 		},
 		{
-			name:     "nil storage",
-			filePath: "/tmp/test.json",
-			storage:  nil,
-			wantErr:  errors.New("create dumper error: storage can't be nil"),
-			wantNil:  true,
+			name:       "nil repository",
+			filePath:   "/tmp/test.json",
+			repository: nil,
+			wantErr:    errors.New("create dumper error: repository can't be nil"),
+			wantNil:    true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d, err := NewDumper(tt.filePath, tt.storage, &sync.RWMutex{})
+			repository := tt.repository
+			d, err := NewDumper(tt.filePath, repository)
 
 			if tt.wantErr != nil {
 				assert.Error(t, err)
@@ -48,7 +48,7 @@ func TestNewDumper(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, d)
-				assert.Equal(t, tt.storage, d.storage)
+				assert.Equal(t, tt.repository, d.repository)
 			}
 		})
 	}
@@ -60,35 +60,46 @@ func TestDumper_Dump(t *testing.T) {
 	tests := []struct {
 		name       string
 		filename   string
-		setup      func() *Dumper
+		mockSetup  func(*repository.MockMetricsRepository)
 		expectFile bool
 		expectErr  bool
 	}{
 		{
 			name:     "success dump",
-			filename: "success_dump",
-			setup: func() *Dumper {
-				strg := storage.NewMemStorage()
-				strg.Metrics["test"] = models.Metrics{
-					ID:    "test",
-					MType: "counter",
-					Delta: int64Ptr(5),
+			filename: "success_dump.json",
+			mockSetup: func(m *repository.MockMetricsRepository) {
+				metrics := []models.Metrics{
+					{ID: "test", MType: "counter", Delta: int64Ptr(5)},
 				}
-				file := filepath.Join(tmpDir, "metrics", "json")
-				d, _ := NewDumper(file, strg, &sync.RWMutex{})
-				return d
+				m.EXPECT().GetAllMetrics().Return(&metrics, nil)
 			},
 			expectFile: true,
 			expectErr:  false,
 		},
 		{
 			name:     "empty storage dump",
-			filename: "empty_storage_dump",
-			setup: func() *Dumper {
-				strg := storage.NewMemStorage()
-				file := filepath.Join(tmpDir, "empty", "json")
-				d, _ := NewDumper(file, strg, &sync.RWMutex{})
-				return d
+			filename: "empty_storage_dump.json",
+			mockSetup: func(m *repository.MockMetricsRepository) {
+				metrics := []models.Metrics{}
+				m.EXPECT().GetAllMetrics().Return(&metrics, nil)
+			},
+			expectFile: true,
+			expectErr:  false,
+		},
+		{
+			name:     "repository error",
+			filename: "error_dump.json",
+			mockSetup: func(m *repository.MockMetricsRepository) {
+				m.EXPECT().GetAllMetrics().Return(nil, errors.New("get metrics error"))
+			},
+			expectFile: false,
+			expectErr:  true,
+		},
+		{
+			name:     "nil metrics",
+			filename: "nil_metrics.json",
+			mockSetup: func(m *repository.MockMetricsRepository) {
+				m.EXPECT().GetAllMetrics().Return(nil, nil)
 			},
 			expectFile: true,
 			expectErr:  false,
@@ -97,8 +108,14 @@ func TestDumper_Dump(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := tt.setup()
-			err := d.Dump()
+			mockRepo := repository.NewMockMetricsRepository(t)
+			tt.mockSetup(mockRepo)
+
+			filePath := filepath.Join(tmpDir, tt.filename)
+			d, err := NewDumper(filePath, mockRepo)
+			assert.NoError(t, err)
+
+			err = d.Dump()
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -106,15 +123,22 @@ func TestDumper_Dump(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			assert.FileExists(t, d.file.Name())
 
-			data, err := os.ReadFile(d.file.Name())
-			assert.NoError(t, err)
+			if tt.expectFile {
+				assert.FileExists(t, filePath)
 
-			var got []models.Metrics
-			err = json.Unmarshal(data, &got)
-			assert.NoError(t, err)
-			assert.NotNil(t, got)
+				data, err := os.ReadFile(filePath)
+				assert.NoError(t, err)
+
+				if tt.name == "nil metrics" {
+					assert.Equal(t, "null", string(data))
+				} else {
+					var got []models.Metrics
+					err = json.Unmarshal(data, &got)
+					assert.NoError(t, err)
+					assert.NotNil(t, got)
+				}
+			}
 		})
 	}
 }
@@ -126,73 +150,159 @@ func TestDumper_Read(t *testing.T) {
 		name      string
 		filename  string
 		setupFile func(path string)
+		mockSetup func(*repository.MockMetricsRepository, []models.Metrics, []models.Metrics)
 		expectErr bool
-		expectLen int
 	}{
 		{
-			name:     "valid dump file",
-			filename: "valid_dump_file",
+			name:     "valid dump file with mixed metrics",
+			filename: "valid_dump_file.json",
 			setupFile: func(path string) {
 				metrics := []models.Metrics{
-					{ID: "test1", MType: "counter", Delta: int64Ptr(10)},
-					{ID: "test2", MType: "gauge", Value: float64Ptr(3.14)},
+					{ID: "test1", MType: models.Counter, Delta: int64Ptr(10)},
+					{ID: "test2", MType: models.Gauge, Value: float64Ptr(3.14)},
 				}
 				data, _ := json.Marshal(metrics)
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, data, 0660)
 			},
+			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
+				m.EXPECT().AddAll(&counters).Return(nil)
+				m.EXPECT().ResetAll(&gauges).Return(nil)
+			},
 			expectErr: false,
-			expectLen: 2,
+		},
+		{
+			name:     "only counters",
+			filename: "only_counters.json",
+			setupFile: func(path string) {
+				metrics := []models.Metrics{
+					{ID: "c1", MType: models.Counter, Delta: int64Ptr(5)},
+					{ID: "c2", MType: models.Counter, Delta: int64Ptr(3)},
+				}
+				data, _ := json.Marshal(metrics)
+				os.MkdirAll(filepath.Dir(path), 0755)
+				os.WriteFile(path, data, 0660)
+			},
+			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
+				m.EXPECT().AddAll(&counters).Return(nil)
+			},
+			expectErr: false,
+		},
+		{
+			name:     "only gauges",
+			filename: "only_gauges.json",
+			setupFile: func(path string) {
+				metrics := []models.Metrics{
+					{ID: "g1", MType: models.Gauge, Value: float64Ptr(1.1)},
+					{ID: "g2", MType: models.Gauge, Value: float64Ptr(2.2)},
+				}
+				data, _ := json.Marshal(metrics)
+				os.MkdirAll(filepath.Dir(path), 0755)
+				os.WriteFile(path, data, 0660)
+			},
+			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
+				m.EXPECT().ResetAll(&gauges).Return(nil)
+			},
+			expectErr: false,
 		},
 		{
 			name:     "empty file",
-			filename: "empty_file",
+			filename: "empty_file.json",
 			setupFile: func(path string) {
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte{}, 0660)
 			},
+			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
+			},
 			expectErr: false,
-			expectLen: 0,
 		},
 		{
 			name:     "invalid JSON",
-			filename: "invalid_json",
+			filename: "invalid_json.json",
 			setupFile: func(path string) {
 				os.MkdirAll(filepath.Dir(path), 0755)
 				os.WriteFile(path, []byte("{invalid json"), 0660)
 			},
+			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
+			},
 			expectErr: true,
-			expectLen: 0,
 		},
 		{
-			name:     "file does not exist",
-			filename: "file_does_not_exist",
+			name:     "counters repository error",
+			filename: "counters_error.json",
 			setupFile: func(path string) {
+				metrics := []models.Metrics{
+					{ID: "c1", MType: models.Counter, Delta: int64Ptr(10)},
+					{ID: "g1", MType: models.Gauge, Value: float64Ptr(3.14)},
+				}
+				data, _ := json.Marshal(metrics)
+				os.MkdirAll(filepath.Dir(path), 0755)
+				os.WriteFile(path, data, 0660)
 			},
-			expectErr: false,
-			expectLen: 0,
+			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
+				m.EXPECT().AddAll(&counters).Return(errors.New("counter error"))
+				m.EXPECT().ResetAll(&gauges).Return(nil)
+			},
+			expectErr: true,
+		},
+		{
+			name:     "gauges repository error",
+			filename: "gauges_error.json",
+			setupFile: func(path string) {
+				metrics := []models.Metrics{
+					{ID: "c1", MType: models.Counter, Delta: int64Ptr(10)},
+					{ID: "g1", MType: models.Gauge, Value: float64Ptr(3.14)},
+				}
+				data, _ := json.Marshal(metrics)
+				os.MkdirAll(filepath.Dir(path), 0755)
+				os.WriteFile(path, data, 0660)
+			},
+			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
+				m.EXPECT().AddAll(&counters).Return(nil)
+				m.EXPECT().ResetAll(&gauges).Return(errors.New("gauge error"))
+			},
+			expectErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			file := filepath.Join(tmpDir, "dump", tt.filename+".json")
+			filePath := filepath.Join(tmpDir, tt.filename)
 			if tt.setupFile != nil {
-				tt.setupFile(file)
+				tt.setupFile(filePath)
 			}
 
-			strg := storage.NewMemStorage()
-			d, _ := NewDumper(file, strg, &sync.RWMutex{})
+			mockRepo := repository.NewMockMetricsRepository(t)
 
-			err := d.Read()
+			var expectedCounters, expectedGauges []models.Metrics
+			if data, err := os.ReadFile(filePath); err == nil && len(data) > 0 {
+				var metrics []models.Metrics
+				if err := json.Unmarshal(data, &metrics); err == nil {
+					for _, metric := range metrics {
+						switch metric.MType {
+						case models.Counter:
+							expectedCounters = append(expectedCounters, metric)
+						case models.Gauge:
+							expectedGauges = append(expectedGauges, metric)
+						}
+					}
+				}
+			}
+
+			if tt.mockSetup != nil {
+				tt.mockSetup(mockRepo, expectedCounters, expectedGauges)
+			}
+
+			d, err := NewDumper(filePath, mockRepo)
+			assert.NoError(t, err)
+
+			err = d.Read()
 
 			if tt.expectErr {
 				assert.Error(t, err)
-				return
+			} else {
+				assert.NoError(t, err)
 			}
-
-			assert.NoError(t, err)
-			assert.Equal(t, tt.expectLen, len(strg.Metrics))
 		})
 	}
 }

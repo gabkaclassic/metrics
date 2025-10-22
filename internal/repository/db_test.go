@@ -12,7 +12,6 @@ import (
 	"testing"
 )
 
-
 func TestNewDBMetricsRepository(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -679,6 +678,137 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	assert.NoError(t, err)
+	defer db.Close()
+
+	repo, err := NewDBMetricsRepository(db)
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		mockQuery   func()
+		expectData  *[]models.Metrics
+		expectError bool
+	}{
+		{
+			name: "success mixed metrics",
+			mockQuery: func() {
+				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+					AddRow("counter1", string(models.Counter), int64(5), nil).
+					AddRow("gauge1", string(models.Gauge), nil, float64(3.14))
+				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
+			},
+			expectData: &[]models.Metrics{
+				{ID: "counter1", MType: models.Counter, Delta: intPtr(5), Value: nil},
+				{ID: "gauge1", MType: models.Gauge, Delta: nil, Value: floatPtr(3.14)},
+			},
+			expectError: false,
+		},
+		{
+			name: "success only counters",
+			mockQuery: func() {
+				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+					AddRow("counter1", string(models.Counter), int64(10), nil).
+					AddRow("counter2", string(models.Counter), int64(20), nil)
+				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
+			},
+			expectData: &[]models.Metrics{
+				{ID: "counter1", MType: models.Counter, Delta: intPtr(10), Value: nil},
+				{ID: "counter2", MType: models.Counter, Delta: intPtr(20), Value: nil},
+			},
+			expectError: false,
+		},
+		{
+			name: "success only gauges",
+			mockQuery: func() {
+				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+					AddRow("gauge1", string(models.Gauge), nil, float64(1.1)).
+					AddRow("gauge2", string(models.Gauge), nil, float64(2.2))
+				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
+			},
+			expectData: &[]models.Metrics{
+				{ID: "gauge1", MType: models.Gauge, Delta: nil, Value: floatPtr(1.1)},
+				{ID: "gauge2", MType: models.Gauge, Delta: nil, Value: floatPtr(2.2)},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty result",
+			mockQuery: func() {
+				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"})
+				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
+			},
+			expectData:  &[]models.Metrics{},
+			expectError: false,
+		},
+		{
+			name: "query error",
+			mockQuery: func() {
+				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").
+					WillReturnError(errors.New("db failure"))
+			},
+			expectData:  nil,
+			expectError: true,
+		},
+		{
+			name: "scan error",
+			mockQuery: func() {
+				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+					AddRow(nil, nil, nil, nil)
+				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
+			},
+			expectData:  nil,
+			expectError: true,
+		},
+		{
+			name: "rows error",
+			mockQuery: func() {
+				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+					AddRow("counter1", string(models.Counter), int64(5), nil).
+					RowError(0, errors.New("row error"))
+				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
+			},
+			expectData:  nil,
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.mockQuery()
+
+			result, err := repo.GetAllMetrics()
+
+			if tt.expectError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, len(*tt.expectData), len(*result))
+				for i, expectedMetric := range *tt.expectData {
+					actualMetric := (*result)[i]
+					assert.Equal(t, expectedMetric.ID, actualMetric.ID)
+					assert.Equal(t, expectedMetric.MType, actualMetric.MType)
+					if expectedMetric.Delta != nil {
+						assert.Equal(t, *expectedMetric.Delta, *actualMetric.Delta)
+					} else {
+						assert.Nil(t, actualMetric.Delta)
+					}
+					if expectedMetric.Value != nil {
+						assert.Equal(t, *expectedMetric.Value, *actualMetric.Value)
+					} else {
+						assert.Nil(t, actualMetric.Value)
+					}
+				}
 			}
 
 			assert.NoError(t, mock.ExpectationsWereMet())

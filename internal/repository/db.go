@@ -31,6 +31,35 @@ func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
 	}, nil
 }
 
+func (repository *dbMetricsRepository) GetAllMetrics() (*[]models.Metrics, error) {
+	metrics := make([]models.Metrics, 0)
+	err := repository.executeWithRetry(func() error {
+		rows, err := repository.storage.Query("SELECT id, type, delta, value FROM metric;")
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var m models.Metrics
+			if err = rows.Scan(&m.ID, &m.MType, &m.Delta, &m.Value); err != nil {
+				return err
+			}
+			metrics = append(metrics, m)
+		}
+
+		if err = rows.Err(); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return &metrics, nil
+}
+
 func (repository *dbMetricsRepository) GetAll() (*map[string]any, error) {
 	var metrics *map[string]any
 	err := repository.executeWithRetry(func() error {

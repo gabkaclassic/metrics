@@ -17,6 +17,7 @@ type MetricsRepository interface {
 	Reset(metric models.Metrics) error
 	Get(metricID string) (*models.Metrics, error)
 	GetAll() (*map[string]any, error)
+	GetAllMetrics() (*[]models.Metrics, error)
 }
 
 type memoryMetricsRepository struct {
@@ -34,6 +35,17 @@ func NewMemoryMetricsRepository(storage *storage.MemStorage, mutex *sync.RWMutex
 		storage: storage,
 		mutex:   mutex,
 	}, nil
+}
+
+func (repository *memoryMetricsRepository) GetAllMetrics() (*[]models.Metrics, error) {
+	metrics := make([]models.Metrics, len(repository.storage.Metrics))
+	index := 0
+	for _, m := range repository.storage.Metrics {
+		metrics[index] = m
+		index += 1
+	}
+
+	return &metrics, nil
 }
 
 func (repository *memoryMetricsRepository) GetAll() (*map[string]any, error) {

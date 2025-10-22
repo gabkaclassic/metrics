@@ -585,6 +585,100 @@ func TestMetricsRepository_GetAll(t *testing.T) {
 	}
 }
 
+func TestMemoryMetricsRepository_GetAllMetrics(t *testing.T) {
+	tests := []struct {
+		name           string
+		initialStorage map[string]models.Metrics
+		expectedCount  int
+		expectedError  bool
+	}{
+		{
+			name:           "empty storage",
+			initialStorage: map[string]models.Metrics{},
+			expectedCount:  0,
+			expectedError:  false,
+		},
+		{
+			name: "storage with counters",
+			initialStorage: map[string]models.Metrics{
+				"c1": {ID: "c1", MType: models.Counter, Delta: intPtr(10)},
+				"c2": {ID: "c2", MType: models.Counter, Delta: intPtr(5)},
+			},
+			expectedCount: 2,
+			expectedError: false,
+		},
+		{
+			name: "storage with gauges",
+			initialStorage: map[string]models.Metrics{
+				"g1": {ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
+				"g2": {ID: "g2", MType: models.Gauge, Value: floatPtr(2.71)},
+			},
+			expectedCount: 2,
+			expectedError: false,
+		},
+		{
+			name: "storage with mixed metrics",
+			initialStorage: map[string]models.Metrics{
+				"c1": {ID: "c1", MType: models.Counter, Delta: intPtr(10)},
+				"g1": {ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
+				"c2": {ID: "c2", MType: models.Counter, Delta: intPtr(5)},
+				"g2": {ID: "g2", MType: models.Gauge, Value: floatPtr(2.71)},
+			},
+			expectedCount: 4,
+			expectedError: false,
+		},
+		{
+			name:           "nil storage",
+			initialStorage: nil,
+			expectedCount:  0,
+			expectedError:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &memoryMetricsRepository{
+				storage: &storage.MemStorage{
+					Metrics: tt.initialStorage,
+				},
+				mutex: &sync.RWMutex{},
+			}
+
+			result, err := repo.GetAllMetrics()
+
+			if tt.expectedError {
+				assert.Error(t, err)
+				assert.Nil(t, result)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, result)
+				assert.Equal(t, tt.expectedCount, len(*result))
+
+				if tt.initialStorage != nil {
+					for id, expectedMetric := range tt.initialStorage {
+						found := false
+						for _, actualMetric := range *result {
+							if actualMetric.ID == id {
+								found = true
+								assert.Equal(t, expectedMetric.ID, actualMetric.ID)
+								assert.Equal(t, expectedMetric.MType, actualMetric.MType)
+								if expectedMetric.Delta != nil {
+									assert.Equal(t, *expectedMetric.Delta, *actualMetric.Delta)
+								}
+								if expectedMetric.Value != nil {
+									assert.Equal(t, *expectedMetric.Value, *actualMetric.Value)
+								}
+								break
+							}
+						}
+						assert.True(t, found, "Metric %s not found in result", id)
+					}
+				}
+			}
+		})
+	}
+}
+
 func floatPtr(v float64) *float64 {
 	return &v
 }

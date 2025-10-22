@@ -55,7 +55,12 @@ func run() error {
 		storage := storage.NewMemStorage()
 		storageMutex := &sync.RWMutex{}
 
-		dumper, err = dump.NewDumper(cfg.Dump.FileStoragePath, storage, storageMutex)
+		metricsRepository, err = repository.NewMemoryMetricsRepository(storage, storageMutex)
+		if err != nil {
+			return err
+		}
+
+		dumper, err = dump.NewDumper(cfg.Dump.FileStoragePath, metricsRepository)
 		if err != nil {
 			return err
 		}
@@ -65,11 +70,6 @@ func run() error {
 		defer dumper.Close()
 
 		readDump(cfg.Dump, dumper)
-
-		metricsRepository, err = repository.NewMemoryMetricsRepository(storage, storageMutex)
-		if err != nil {
-			return err
-		}
 	}
 
 	router, err := setupRouter(&metricsRepository)
