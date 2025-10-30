@@ -60,7 +60,7 @@ func RespondError(w http.ResponseWriter, err error) {
 	}
 
 	requestID := w.Header().Get("X-Request-ID")
-	slog.Info("error request handling", slog.String("error", err.Error()), slog.String("message", apiErr.Message), slog.String("id", requestID))
+	slog.Info("error request handling", slog.Any("error", apiErr.Err), slog.String("message", apiErr.Message), slog.String("id", requestID))
 	w.WriteHeader(apiErr.Code)
 	json.NewEncoder(w).Encode(map[string]string{"error": apiErr.Message})
 }

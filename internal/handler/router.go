@@ -21,6 +21,9 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 		middleware.Decompress(),
 	)
 
+	// Ping endpoint
+	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {})
+
 	setupMetricsRouter(router, config.MetricsHandler)
 
 	return router
@@ -43,6 +46,17 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		"/update/",
 		middleware.Wrap(
 			http.HandlerFunc(handler.SaveJSON),
+			middleware.RequireContentType(middleware.JSON),
+			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
+				middleware.JSON: middleware.GZIP,
+			}),
+			middleware.WithContentType(middleware.JSON),
+		),
+	)
+	router.Post(
+		"/updates/",
+		middleware.Wrap(
+			http.HandlerFunc(handler.SaveAll),
 			middleware.RequireContentType(middleware.JSON),
 			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
 				middleware.JSON: middleware.GZIP,

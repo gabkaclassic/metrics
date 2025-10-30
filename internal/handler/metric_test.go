@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"errors"
+	"net/http"
+	"net/http/httptest"
+
 	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/service"
 	"github.com/stretchr/testify/mock"
-	"net/http"
-	"net/http/httptest"
 
 	"fmt"
 	"io"
@@ -110,6 +112,118 @@ func TestMetricsHandler_Save(t *testing.T) {
 			rr := httptest.NewRecorder()
 
 			handler.Save(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			if tt.expectErrorMsg != "" {
+				assert.Contains(t, rr.Body.String(), tt.expectErrorMsg)
+			}
+		})
+	}
+}
+
+func TestMetricsHandler_SaveAll(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		requestBody    string
+		mockSaveAll    func(metrics *[]models.Metrics) *api.APIError
+		expectStatus   int
+		expectErrorMsg string
+	}{
+		{
+			name:   "valid POST with counter metrics",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "c1", "type": "counter", "delta": 10},
+				{"id": "c2", "type": "counter", "delta": 5}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 2)
+				assert.Equal(t, "c1", (*metrics)[0].ID)
+				assert.Equal(t, models.Counter, (*metrics)[0].MType)
+				assert.Equal(t, int64(10), *(*metrics)[0].Delta)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:   "valid POST with gauge metrics",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "g1", "type": "gauge", "value": 3.14},
+				{"id": "g2", "type": "gauge", "value": 2.71}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 2)
+				assert.Equal(t, "g1", (*metrics)[0].ID)
+				assert.Equal(t, models.Gauge, (*metrics)[0].MType)
+				assert.Equal(t, 3.14, *(*metrics)[0].Value)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:   "valid POST with mixed metrics",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "c1", "type": "counter", "delta": 10},
+				{"id": "g1", "type": "gauge", "value": 3.14}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 2)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:        "empty metrics array",
+			method:      http.MethodPost,
+			requestBody: `[]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				assert.Len(t, *metrics, 0)
+				return nil
+			},
+			expectStatus: http.StatusOK,
+		},
+		{
+			name:           "invalid JSON",
+			method:         http.MethodPost,
+			requestBody:    `invalid json`,
+			mockSaveAll:    func(metrics *[]models.Metrics) *api.APIError { return nil },
+			expectStatus:   http.StatusUnprocessableEntity,
+			expectErrorMsg: "Invalid input JSON",
+		},
+		{
+			name:   "service returns error",
+			method: http.MethodPost,
+			requestBody: `[
+				{"id": "c1", "type": "counter", "delta": 10}
+			]`,
+			mockSaveAll: func(metrics *[]models.Metrics) *api.APIError {
+				return api.Internal("save error", errors.New("some error"))
+			},
+			expectStatus:   http.StatusInternalServerError,
+			expectErrorMsg: "save error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockService := service.NewMockMetricsService(t)
+			if tt.expectStatus != http.StatusUnprocessableEntity {
+				mockService.EXPECT().
+					SaveAll(mock.Anything).
+					RunAndReturn(tt.mockSaveAll)
+			}
+
+			handler, err := NewMetricsHandler(mockService)
+			assert.NoError(t, err)
+
+			req := httptest.NewRequest(tt.method, "/", strings.NewReader(tt.requestBody))
+			req.Header.Set("Content-Type", "application/json")
+			rr := httptest.NewRecorder()
+
+			handler.SaveAll(rr, req)
 
 			assert.Equal(t, tt.expectStatus, rr.Code)
 			if tt.expectErrorMsg != "" {
@@ -346,16 +460,19 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 		name           string
 		mockReturn     *map[string]any
 		expectedStatus int
+		expectedError  *api.APIError
 	}{
 		{
 			name:           "nil metrics",
 			mockReturn:     nil,
 			expectedStatus: http.StatusNotFound,
+			expectedError:  nil,
 		},
 		{
 			name:           "empty metrics",
 			mockReturn:     &map[string]any{},
 			expectedStatus: http.StatusOK,
+			expectedError:  nil,
 		},
 		{
 			name: "metrics with values",
@@ -364,13 +481,20 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 				"g1": float64(3.14),
 			},
 			expectedStatus: http.StatusOK,
+			expectedError:  nil,
+		},
+		{
+			name:           "return error",
+			mockReturn:     nil,
+			expectedStatus: http.StatusInternalServerError,
+			expectedError:  api.Internal("some error", errors.New("some error")),
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockService := service.NewMockMetricsService(t)
-			mockService.EXPECT().GetAll().Return(tt.mockReturn)
+			mockService.EXPECT().GetAll().Return(tt.mockReturn, tt.expectedError)
 
 			handler, err := NewMetricsHandler(mockService)
 			assert.NoError(t, err)
@@ -388,7 +512,9 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 
 			bodyStr := string(body)
 			if tt.mockReturn == nil {
-				assert.Contains(t, bodyStr, "Metrics not found")
+				if tt.expectedError == nil {
+					assert.Contains(t, bodyStr, "Metrics not found")
+				}
 			} else {
 				for id, val := range *tt.mockReturn {
 					assert.Contains(t, bodyStr, id)

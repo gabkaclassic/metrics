@@ -4,28 +4,27 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/internal/model"
-	"github.com/gabkaclassic/metrics/internal/storage"
+	"github.com/gabkaclassic/metrics/internal/repository"
 )
 
 type Dumper struct {
-	file    *os.File
-	mutex   *sync.RWMutex
-	storage *storage.MemStorage
+	file       *os.File
+	repository repository.MetricsRepository
 }
 
-func NewDumper(filePath string, storage *storage.MemStorage, mutex *sync.RWMutex) (*Dumper, error) {
+func NewDumper(filePath string, repository repository.MetricsRepository) (*Dumper, error) {
 
-	if storage == nil {
-		return nil, errors.New("create dumper error: storage can't be nil")
+	if repository == nil {
+		return nil, errors.New("create dumper error: repository can't be nil")
 	}
 
 	dir := filepath.Dir(filePath)
@@ -42,20 +41,19 @@ func NewDumper(filePath string, storage *storage.MemStorage, mutex *sync.RWMutex
 	}
 
 	return &Dumper{
-		file:    file,
-		mutex:   mutex,
-		storage: storage,
+		file:       file,
+		repository: repository,
 	}, nil
 }
 
 func (d *Dumper) Dump() error {
 
-	d.mutex.RLock()
-	data := make([]models.Metrics, 0)
-	for _, metric := range d.storage.Metrics {
-		data = append(data, metric)
+	data, err := d.repository.GetAllMetrics()
+
+	if err != nil {
+		slog.Error("Get data error", slog.String("error", err.Error()))
+		return err
 	}
-	d.mutex.RUnlock()
 
 	marshalledData, err := json.Marshal(data)
 
@@ -101,13 +99,41 @@ func (d *Dumper) Read() error {
 	}
 
 	var metrics []models.Metrics
+	var counters []models.Metrics
+	var gauges []models.Metrics
 	if err := json.Unmarshal(data, &metrics); err != nil {
 		slog.Error("Unmarshal data error", slog.String("error", err.Error()))
 		return err
 	}
 
 	for _, metric := range metrics {
-		d.storage.Metrics[metric.ID] = metric
+		switch metric.MType {
+		case models.Counter:
+			counters = append(counters, metric)
+		case models.Gauge:
+			gauges = append(gauges, metric)
+		}
+	}
+
+	errChan := make(chan error, 2)
+
+	if len(counters) > 0 {
+		go func() { errChan <- d.repository.AddAll(&counters) }()
+	} else {
+		go func() { errChan <- nil }()
+	}
+
+	if len(gauges) > 0 {
+		go func() { errChan <- d.repository.ResetAll(&gauges) }()
+	} else {
+		go func() { errChan <- nil }()
+	}
+
+	err1 := <-errChan
+	err2 := <-errChan
+
+	if err1 != nil || err2 != nil {
+		return fmt.Errorf("save metrics error: counters: %v, gauges: %v", err1, err2)
 	}
 
 	slog.Info("Dump restored successfully")

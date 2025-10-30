@@ -16,12 +16,19 @@ type (
 		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
 		Log     Log
 		Dump    Dump
+		DB      DB
+	}
+	DB struct {
+		Driver         string `env:"DB_DRIVER" envDefault:"postgres"`
+		DSN            string `env:"DATABASE_DSN"`
+		MigrationsPath string `env:"DB_MIGRATIONS_PATH" envDefault:"./migrations"`
 	}
 	Agent struct {
 		PollInterval   time.Duration `env:"POLL_INTERVAL" envDefault:"2"`
 		ReportInterval time.Duration `env:"REPORT_INTERVAL" envDefault:"10"`
 		Client         Client
 		Log            Log
+		BatchesEnabled bool `env:"BATCHES" envDefault:"true"`
 	}
 	Client struct {
 		BaseURL string        `env:"ADDRESS" envDefault:"localhost:8080"`
@@ -84,18 +91,24 @@ func ParseServerConfig() (*Server, error) {
 	fileStoragePath := flag.String("f", cfg.Dump.FileStoragePath, "File storate path")
 	restore := flag.Bool("r", cfg.Dump.Restore, "Restore need")
 
+	dbDSN := flag.String("d", cfg.DB.DSN, "DSN")
+	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
+	dbMigrationsPath := flag.String("db-migrations-path", cfg.DB.MigrationsPath, "Migrations file path")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "a":
 			cfg.Address = *address
+
 		case "i":
 			cfg.Dump.StoreInterval = time.Duration(*storeInterval) * time.Second
 		case "f":
 			cfg.Dump.FileStoragePath = *fileStoragePath
 		case "r":
 			cfg.Dump.Restore = *restore
+
 		case "log-level":
 			cfg.Log.Level = *logLevel
 		case "log-file":
@@ -104,6 +117,13 @@ func ParseServerConfig() (*Server, error) {
 			cfg.Log.Console = *logConsole
 		case "log-json":
 			cfg.Log.JSON = *logJSON
+
+		case "db-driver":
+			cfg.DB.Driver = *dbDriver
+		case "d":
+			cfg.DB.DSN = *dbDSN
+		case "db-migrations-path":
+			cfg.DB.MigrationsPath = *dbMigrationsPath
 		}
 	})
 
@@ -124,6 +144,7 @@ func ParseAgentConfig() (*Agent, error) {
 	serverAddress := flag.String("a", cfg.Client.BaseURL, "Server HTTP base URL")
 	retries := flag.Int("report-retries", cfg.Client.Retries, "Max update metrics retries")
 	timeout := flag.Uint("report-timeout", uint(cfg.Client.Timeout.Seconds()), "Metrics update timeout (seconds)")
+	batchesEnabled := flag.Bool("batches-enabled", cfg.BatchesEnabled, "Batches using enabled")
 
 	logLevel := flag.String("log-level", cfg.Log.Level, "Logging level")
 	logFile := flag.String("log-file", cfg.Log.File, "Log file path")
@@ -152,6 +173,8 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.Log.Console = *logConsole
 		case "log-json":
 			cfg.Log.JSON = *logJSON
+		case "batches-enabled":
+			cfg.BatchesEnabled = *batchesEnabled
 		}
 	})
 

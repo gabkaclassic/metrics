@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: metrics_postgres
+    environment:
+      POSTGRES_DB: metrics
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5432:5432"
+    volumes:
+      - metrics_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  metrics_postgres_data:

@@ -108,7 +108,7 @@ func (_c *MockMetricsService_Get_Call) RunAndReturn(run func(metricID string, me
 }
 
 // GetAll provides a mock function for the type MockMetricsService
-func (_mock *MockMetricsService) GetAll() *map[string]any {
+func (_mock *MockMetricsService) GetAll() (*map[string]any, *api.APIError) {
 	ret := _mock.Called()
 
 	if len(ret) == 0 {
@@ -116,6 +116,10 @@ func (_mock *MockMetricsService) GetAll() *map[string]any {
 	}
 
 	var r0 *map[string]any
+	var r1 *api.APIError
+	if returnFunc, ok := ret.Get(0).(func() (*map[string]any, *api.APIError)); ok {
+		return returnFunc()
+	}
 	if returnFunc, ok := ret.Get(0).(func() *map[string]any); ok {
 		r0 = returnFunc()
 	} else {
@@ -123,7 +127,14 @@ func (_mock *MockMetricsService) GetAll() *map[string]any {
 			r0 = ret.Get(0).(*map[string]any)
 		}
 	}
-	return r0
+	if returnFunc, ok := ret.Get(1).(func() *api.APIError); ok {
+		r1 = returnFunc()
+	} else {
+		if ret.Get(1) != nil {
+			r1 = ret.Get(1).(*api.APIError)
+		}
+	}
+	return r0, r1
 }
 
 // MockMetricsService_GetAll_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAll'
@@ -143,12 +154,12 @@ func (_c *MockMetricsService_GetAll_Call) Run(run func()) *MockMetricsService_Ge
 	return _c
 }
 
-func (_c *MockMetricsService_GetAll_Call) Return(stringToV *map[string]any) *MockMetricsService_GetAll_Call {
-	_c.Call.Return(stringToV)
+func (_c *MockMetricsService_GetAll_Call) Return(stringToV *map[string]any, aPIError *api.APIError) *MockMetricsService_GetAll_Call {
+	_c.Call.Return(stringToV, aPIError)
 	return _c
 }
 
-func (_c *MockMetricsService_GetAll_Call) RunAndReturn(run func() *map[string]any) *MockMetricsService_GetAll_Call {
+func (_c *MockMetricsService_GetAll_Call) RunAndReturn(run func() (*map[string]any, *api.APIError)) *MockMetricsService_GetAll_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -284,6 +295,59 @@ func (_c *MockMetricsService_Save_Call) Return(aPIError *api.APIError) *MockMetr
 }
 
 func (_c *MockMetricsService_Save_Call) RunAndReturn(run func(id string, metricType string, rawValue string) *api.APIError) *MockMetricsService_Save_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SaveAll provides a mock function for the type MockMetricsService
+func (_mock *MockMetricsService) SaveAll(metrics *[]models.Metrics) *api.APIError {
+	ret := _mock.Called(metrics)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SaveAll")
+	}
+
+	var r0 *api.APIError
+	if returnFunc, ok := ret.Get(0).(func(*[]models.Metrics) *api.APIError); ok {
+		r0 = returnFunc(metrics)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*api.APIError)
+		}
+	}
+	return r0
+}
+
+// MockMetricsService_SaveAll_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SaveAll'
+type MockMetricsService_SaveAll_Call struct {
+	*mock.Call
+}
+
+// SaveAll is a helper method to define mock.On call
+//   - metrics *[]models.Metrics
+func (_e *MockMetricsService_Expecter) SaveAll(metrics interface{}) *MockMetricsService_SaveAll_Call {
+	return &MockMetricsService_SaveAll_Call{Call: _e.mock.On("SaveAll", metrics)}
+}
+
+func (_c *MockMetricsService_SaveAll_Call) Run(run func(metrics *[]models.Metrics)) *MockMetricsService_SaveAll_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 *[]models.Metrics
+		if args[0] != nil {
+			arg0 = args[0].(*[]models.Metrics)
+		}
+		run(
+			arg0,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMetricsService_SaveAll_Call) Return(aPIError *api.APIError) *MockMetricsService_SaveAll_Call {
+	_c.Call.Return(aPIError)
+	return _c
+}
+
+func (_c *MockMetricsService_SaveAll_Call) RunAndReturn(run func(metrics *[]models.Metrics) *api.APIError) *MockMetricsService_SaveAll_Call {
 	_c.Call.Return(run)
 	return _c
 }

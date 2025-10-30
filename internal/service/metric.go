@@ -15,7 +15,8 @@ type MetricsService interface {
 	GetStruct(metricID string, metricType string) (*models.Metrics, *api.APIError)
 	Save(id string, metricType string, rawValue string) *api.APIError
 	SaveStruct(metric models.Metrics) *api.APIError
-	GetAll() *map[string]any
+	SaveAll(metrics *[]models.Metrics) *api.APIError
+	GetAll() (*map[string]any, *api.APIError)
 }
 
 type metricsService struct {
@@ -33,8 +34,14 @@ func NewMetricsService(repository repository.MetricsRepository) (MetricsService,
 	}, nil
 }
 
-func (service *metricsService) GetAll() *map[string]any {
-	return service.repository.GetAll()
+func (service *metricsService) GetAll() (*map[string]any, *api.APIError) {
+	metrics, err := service.repository.GetAll()
+
+	if err != nil {
+		return nil, api.Internal("Get all metrics error", err)
+	}
+
+	return metrics, nil
 }
 
 func (service *metricsService) Get(metricID string, metricType string) (any, *api.APIError) {
@@ -117,13 +124,80 @@ func (service *metricsService) Save(id string, metricType string, rawValue strin
 
 func (service *metricsService) SaveStruct(metric models.Metrics) *api.APIError {
 
+	var err error
 	switch metric.MType {
 	case models.Counter:
-		service.repository.Add(metric)
+		err = service.repository.Add(metric)
 	case models.Gauge:
-		service.repository.Reset(metric)
+		err = service.repository.Reset(metric)
 	default:
 		return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metric.MType))
+	}
+
+	if err != nil {
+		return api.Internal("save metric error", err)
+	}
+	return nil
+}
+
+func (service *metricsService) SaveAll(metrics *[]models.Metrics) *api.APIError {
+	counterSums := make(map[string]int64)
+	gaugeLastValues := make(map[string]float64)
+
+	for _, metric := range *metrics {
+		switch metric.MType {
+		case models.Counter:
+			if metric.Delta != nil {
+				counterSums[metric.ID] += *metric.Delta
+			}
+		case models.Gauge:
+			if metric.Value != nil {
+				gaugeLastValues[metric.ID] = *metric.Value
+			}
+		default:
+			return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metric.MType))
+		}
+	}
+
+	counters := make([]models.Metrics, 0, len(counterSums))
+	for id, delta := range counterSums {
+		deltaCopy := delta
+		counters = append(counters, models.Metrics{
+			ID:    id,
+			MType: models.Counter,
+			Delta: &deltaCopy,
+		})
+	}
+
+	gauges := make([]models.Metrics, 0, len(gaugeLastValues))
+	for id, value := range gaugeLastValues {
+		valueCopy := value
+		gauges = append(gauges, models.Metrics{
+			ID:    id,
+			MType: models.Gauge,
+			Value: &valueCopy,
+		})
+	}
+
+	errChan := make(chan error, 2)
+
+	if len(counters) > 0 {
+		go func() { errChan <- service.repository.AddAll(&counters) }()
+	} else {
+		go func() { errChan <- nil }()
+	}
+
+	if len(gauges) > 0 {
+		go func() { errChan <- service.repository.ResetAll(&gauges) }()
+	} else {
+		go func() { errChan <- nil }()
+	}
+
+	err1 := <-errChan
+	err2 := <-errChan
+
+	if err1 != nil || err2 != nil {
+		return api.Internal("save metrics error", fmt.Errorf("counters: %v, gauges: %v", err1, err2))
 	}
 
 	return nil

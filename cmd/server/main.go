@@ -28,28 +28,51 @@ func main() {
 
 func run() error {
 	cfg, err := config.ParseServerConfig()
-
 	if err != nil {
 		return err
 	}
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
-	storage := storage.NewMemStorage()
-	storageMutex := &sync.RWMutex{}
+	var metricsRepository repository.MetricsRepository
+	var dumper *dump.Dumper
+	var dumperEnabled bool
 
-	dumper, err := dump.NewDumper(cfg.Dump.FileStoragePath, storage, storageMutex)
+	if len(cfg.DB.DSN) > 0 {
+		storage, err := storage.NewDBStorage(cfg.DB)
+		if err != nil {
+			return err
+		}
+		defer storage.Close()
 
-	if err != nil {
-		return err
+		metricsRepository, err = repository.NewDBMetricsRepository(storage)
+		if err != nil {
+			return err
+		}
+
+		slog.Info("Using database storage")
+	} else {
+		storage := storage.NewMemStorage()
+		storageMutex := &sync.RWMutex{}
+
+		metricsRepository, err = repository.NewMemoryMetricsRepository(storage, storageMutex)
+		if err != nil {
+			return err
+		}
+
+		dumper, err = dump.NewDumper(cfg.Dump.FileStoragePath, metricsRepository)
+		if err != nil {
+			return err
+		}
+
+		slog.Info("Using file storage with dumper", "dump_file", cfg.Dump.FileStoragePath)
+		dumperEnabled = true
+		defer dumper.Close()
+
+		readDump(cfg.Dump, dumper)
 	}
 
-	defer dumper.Close()
-
-	readDump(cfg.Dump, dumper)
-
-	router, err := setupRouter(storage, storageMutex)
-
+	router, err := setupRouter(&metricsRepository)
 	if err != nil {
 		return err
 	}
@@ -62,7 +85,11 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	go dumper.StartDumper(ctx, cfg.Dump)
+	if dumperEnabled {
+		go dumper.StartDumper(ctx, cfg.Dump)
+		slog.Info("Dumper started")
+	}
+
 	go server.Run(ctx, stop)
 
 	<-ctx.Done()
@@ -77,16 +104,10 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(strg *storage.MemStorage, storageMutex *sync.RWMutex) (http.Handler, error) {
+func setupRouter(metricsRepository *repository.MetricsRepository) (http.Handler, error) {
 
 	// Metrics
-	metricsRepository, err := repository.NewMetricsRepository(strg, storageMutex)
-
-	if err != nil {
-		return nil, err
-	}
-
-	metricsService, err := service.NewMetricsService(metricsRepository)
+	metricsService, err := service.NewMetricsService(*metricsRepository)
 
 	if err != nil {
 		return nil, err

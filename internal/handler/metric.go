@@ -87,6 +87,22 @@ func (handler *MetricsHandler) SaveJSON(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+func (handler *MetricsHandler) SaveAll(w http.ResponseWriter, r *http.Request) {
+	metrics := make([]models.Metrics, 0)
+	err := json.NewDecoder(r.Body).Decode(&metrics)
+	if err != nil {
+		api.RespondError(w, api.UnprocessibleEntity("Invalid input JSON"))
+		return
+	}
+
+	saveErr := handler.service.SaveAll(&metrics)
+
+	if saveErr != nil {
+		api.RespondError(w, saveErr)
+		return
+	}
+}
+
 func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	metricID := r.PathValue("id")
@@ -133,7 +149,13 @@ func (handler *MetricsHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
-	metrics := handler.service.GetAll()
+	metrics, err := handler.service.GetAll()
+
+	if err != nil {
+		api.RespondError(w, err)
+		return
+	}
+
 	if metrics == nil {
 		api.RespondError(
 			w,
@@ -147,7 +169,10 @@ func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := metricsTemplate.Execute(w, data); err != nil {
-		http.Error(w, "failed to render template", http.StatusInternalServerError)
+		api.RespondError(
+			w,
+			api.Internal("failed to render template", err),
+		)
 		return
 	}
 }
