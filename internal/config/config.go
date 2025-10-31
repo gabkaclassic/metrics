@@ -38,7 +38,7 @@ type (
 		Retries int           `env:"RETRIES" envDefault:"3"`
 	}
 	Log struct {
-		Level   string `env:"LOG_LEVEL" envDefault:"error"`
+		Level   string `env:"LOG_LEVEL" envDefault:"info"`
 		File    string `env:"LOG_FILE"`
 		Console bool   `env:"LOG_CONSOLE" envDefault:"false"`
 		JSON    bool   `env:"LOG_JSON" envDefault:"true"`
