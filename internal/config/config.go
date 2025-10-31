@@ -14,6 +14,7 @@ import (
 type (
 	Server struct {
 		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
+		SignKey string `env:"KEY"`
 		Log     Log
 		Dump    Dump
 		DB      DB
@@ -28,7 +29,8 @@ type (
 		ReportInterval time.Duration `env:"REPORT_INTERVAL" envDefault:"10"`
 		Client         Client
 		Log            Log
-		BatchesEnabled bool `env:"BATCHES" envDefault:"true"`
+		BatchesEnabled bool   `env:"BATCHES" envDefault:"true"`
+		SignKey        string `env:"KEY"`
 	}
 	Client struct {
 		BaseURL string        `env:"ADDRESS" envDefault:"localhost:8080"`
@@ -36,7 +38,7 @@ type (
 		Retries int           `env:"RETRIES" envDefault:"3"`
 	}
 	Log struct {
-		Level   string `env:"LOG_LEVEL" envDefault:"info"`
+		Level   string `env:"LOG_LEVEL" envDefault:"error"`
 		File    string `env:"LOG_FILE"`
 		Console bool   `env:"LOG_CONSOLE" envDefault:"false"`
 		JSON    bool   `env:"LOG_JSON" envDefault:"true"`
@@ -95,6 +97,8 @@ func ParseServerConfig() (*Server, error) {
 	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
 	dbMigrationsPath := flag.String("db-migrations-path", cfg.DB.MigrationsPath, "Migrations file path")
 
+	signKey := flag.String("k", cfg.SignKey, "Key to verify requests bodies")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
@@ -124,6 +128,9 @@ func ParseServerConfig() (*Server, error) {
 			cfg.DB.DSN = *dbDSN
 		case "db-migrations-path":
 			cfg.DB.MigrationsPath = *dbMigrationsPath
+
+		case "k":
+			cfg.SignKey = *signKey
 		}
 	})
 
@@ -151,6 +158,8 @@ func ParseAgentConfig() (*Agent, error) {
 	logConsole := flag.Bool("log-console", cfg.Log.Console, "Enable console logging")
 	logJSON := flag.Bool("log-json", cfg.Log.JSON, "Enable JSON output for logs")
 
+	signKey := flag.String("k", cfg.SignKey, "Key to sign requests bodies")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
@@ -159,12 +168,16 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.PollInterval = time.Duration(*pollInterval) * time.Second
 		case "r":
 			cfg.ReportInterval = time.Duration(*reportInterval) * time.Second
+		case "batches-enabled":
+			cfg.BatchesEnabled = *batchesEnabled
+
 		case "a":
 			cfg.Client.BaseURL = *serverAddress
 		case "report-retries":
 			cfg.Client.Retries = *retries
 		case "report-timeout":
 			cfg.Client.Timeout = time.Duration(*timeout) * time.Second
+
 		case "log-level":
 			cfg.Log.Level = *logLevel
 		case "log-file":
@@ -173,8 +186,9 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.Log.Console = *logConsole
 		case "log-json":
 			cfg.Log.JSON = *logJSON
-		case "batches-enabled":
-			cfg.BatchesEnabled = *batchesEnabled
+
+		case "k":
+			cfg.SignKey = *signKey
 		}
 	})
 
