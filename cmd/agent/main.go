@@ -28,7 +28,7 @@ func main() {
 	)
 
 	agent := agent.NewAgent(
-		client, &runtime.MemStats{}, cfg.BatchesEnabled,
+		client, &runtime.MemStats{}, cfg.BatchesEnabled, cfg.SignKey,
 	)
 
 	startAgent(cfg.PollInterval, cfg.ReportInterval, agent)

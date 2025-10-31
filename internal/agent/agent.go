@@ -13,6 +13,7 @@ import (
 
 	"compress/gzip"
 	"github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 )
@@ -29,9 +30,10 @@ type MetricsAgent struct {
 	client         httpclient.HTTPClient
 	metrics        []metric.Metric
 	batchesEnabled bool
+	signer         hash.Signer
 }
 
-func NewAgent(client httpclient.HTTPClient, stats *runtime.MemStats, batchesEnabled bool) *MetricsAgent {
+func NewAgent(client httpclient.HTTPClient, stats *runtime.MemStats, batchesEnabled bool, signKey string) *MetricsAgent {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},
@@ -43,12 +45,15 @@ func NewAgent(client httpclient.HTTPClient, stats *runtime.MemStats, batchesEnab
 	// Gauges runtime
 	metrics = append(metrics, metric.RuntimeMetrics(stats)...)
 
+	signer := hash.NewSHA256Signer(signKey)
+
 	return &MetricsAgent{
 		client:         client,
 		metrics:        metrics,
 		stats:          stats,
 		mu:             &sync.RWMutex{},
 		batchesEnabled: batchesEnabled,
+		signer:         signer,
 	}
 }
 
@@ -203,6 +208,9 @@ func (agent *MetricsAgent) compressData(data []byte) (*bytes.Buffer, error) {
 }
 
 func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) error {
+
+	sign := agent.signer.Sign(body.Bytes())
+
 	resp, err := agent.client.Post(
 		endpoint,
 		&httpclient.RequestOptions{
@@ -210,6 +218,7 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 			Headers: &httpclient.Headers{
 				"Content-Type":     "application/json",
 				"Content-Encoding": "gzip",
+				"Hash":             sign,
 			},
 		},
 	)
