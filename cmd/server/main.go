@@ -21,6 +21,7 @@ import (
 )
 
 func main() {
+
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
@@ -31,7 +32,6 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
 	var metricsRepository repository.MetricsRepository
@@ -72,7 +72,7 @@ func run() error {
 		readDump(cfg.Dump, dumper)
 	}
 
-	router, err := setupRouter(&metricsRepository)
+	router, err := setupRouter(&metricsRepository, cfg.SignKey)
 	if err != nil {
 		return err
 	}
@@ -104,7 +104,7 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(metricsRepository *repository.MetricsRepository) (http.Handler, error) {
+func setupRouter(metricsRepository *repository.MetricsRepository, signKey string) (http.Handler, error) {
 
 	// Metrics
 	metricsService, err := service.NewMetricsService(*metricsRepository)
@@ -121,5 +121,6 @@ func setupRouter(metricsRepository *repository.MetricsRepository) (http.Handler,
 
 	return handler.SetupRouter(&handler.RouterConfiguration{
 		MetricsHandler: metricsHandler,
+		SignKey:        signKey,
 	}), nil
 }

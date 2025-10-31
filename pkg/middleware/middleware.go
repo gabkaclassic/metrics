@@ -10,6 +10,7 @@ import (
 
 	"github.com/gabkaclassic/metrics/pkg/compress"
 	api "github.com/gabkaclassic/metrics/pkg/error"
+	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/google/uuid"
 )
 
@@ -36,6 +37,37 @@ var compressors = map[CompressType]func(http.ResponseWriter) (*compress.Compress
 
 var decompressors = map[CompressType]func(io.ReadCloser) (*compress.CompressReader, error){
 	GZIP: compress.NewGzipReader,
+}
+
+func SignVerify(signKey string) middleware {
+
+	verifier := hash.NewSHA256Verifier(signKey)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			if r.Method != http.MethodPost {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			sign := r.Header.Get("Hash")
+			var bodyBytes []byte
+			if r.Body != nil {
+				bodyBytes, _ = io.ReadAll(r.Body)
+			}
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+			if !verifier.Verify(bodyBytes, sign) {
+				err := api.BadRequest("Data sign is invalid")
+				api.RespondError(w, err)
+				return
+			}
+			slog.Debug("Data sign verified successful")
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func Compress(compressMapping map[ContentType]CompressType) middleware {
