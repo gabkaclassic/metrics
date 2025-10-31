@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ func TestNewAgent(t *testing.T) {
 	dummyClient := httpclient.NewMockHTTPClient(t)
 	stats := &runtime.MemStats{}
 
-	agent := NewAgent(dummyClient, stats, true)
+	agent := NewAgent(dummyClient, stats, true, "")
 
 	assert.NotNil(t, agent)
 	assert.Equal(t, dummyClient, agent.client)
@@ -112,6 +113,7 @@ func TestMetricsAgent_sendRequest(t *testing.T) {
 			m := &MetricsAgent{
 				client: mockClient,
 				mu:     &sync.RWMutex{},
+				signer: hash.NewSHA256Signer(""),
 			}
 
 			err := m.sendRequest(endpoint, body)
