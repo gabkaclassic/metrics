@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -239,6 +240,106 @@ func TestLogger(t *testing.T) {
 				assert.Equal(t, tt.expectHeaderID, headerID)
 			}
 			assert.Equal(t, tt.expectStatus, rr.Code)
+		})
+	}
+}
+
+func TestSignVerify(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		signKey        string
+		requestSign    string
+		requestBody    string
+		expectStatus   int
+		expectNextCall bool
+	}{
+		{
+			name:           "POST with valid signature passes",
+			method:         http.MethodPost,
+			signKey:        "test-key",
+			requestSign:    "IaKG/W/Z9SZ2AHxm0PiD20bQYVjCZtM/tTfCO8YY5Wc=",
+			requestBody:    "test-data",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:           "POST with invalid signature returns error",
+			method:         http.MethodPost,
+			signKey:        "test-key",
+			requestSign:    "invalid-signature",
+			requestBody:    "test-data",
+			expectStatus:   http.StatusBadRequest,
+			expectNextCall: false,
+		},
+		{
+			name:           "POST with wrong key returns error",
+			method:         http.MethodPost,
+			signKey:        "wrong-key",
+			requestSign:    "pXNY6Vs2c0dM7sBsXW6bQ3X6WJPSqcbql1k7p3G0n/g=",
+			requestBody:    "test-data",
+			expectStatus:   http.StatusBadRequest,
+			expectNextCall: false,
+		},
+		{
+			name:           "POST with empty body and valid signature passes",
+			method:         http.MethodPost,
+			signKey:        "test-key",
+			requestSign:    "JxHMI+mrG4qbwP6ZEjjakmcWJKnr2vHBq+wG5+mhT5s=",
+			requestBody:    "",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:           "GET method skips verification",
+			method:         http.MethodGet,
+			signKey:        "test-key",
+			requestSign:    "",
+			requestBody:    "test-data",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:           "PUT method skips verification",
+			method:         http.MethodPut,
+			signKey:        "test-key",
+			requestSign:    "",
+			requestBody:    "test-data",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:           "POST with malformed base64 returns error",
+			method:         http.MethodPost,
+			signKey:        "test-key",
+			requestSign:    "!!!malformed!!!",
+			requestBody:    "test-data",
+			expectStatus:   http.StatusBadRequest,
+			expectNextCall: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mw := SignVerify(tt.signKey)(next)
+
+			req := httptest.NewRequest(tt.method, "/", strings.NewReader(tt.requestBody))
+			if tt.requestSign != "" {
+				req.Header.Set("Hash", tt.requestSign)
+			}
+
+			rr := httptest.NewRecorder()
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			assert.Equal(t, tt.expectNextCall, nextCalled)
 		})
 	}
 }
