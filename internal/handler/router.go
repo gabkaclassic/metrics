@@ -58,6 +58,7 @@ func setupMetricsRouter(
 			}),
 			middleware.WithContentType(middleware.JSON),
 			decompressMiddleware,
+			signVerifyMiddleware,
 		),
 	)
 	router.Post(
