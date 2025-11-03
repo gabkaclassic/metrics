@@ -37,10 +37,10 @@ type MetricsAgent struct {
 	metrics        []metric.Metric
 	batchesEnabled bool
 	signer         hash.Signer
-	rateLimit      int64
+	rateLimit      int
 }
 
-func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, rateLimit int64) (*MetricsAgent, error) {
+func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, rateLimit int) (*MetricsAgent, error) {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},
@@ -117,7 +117,6 @@ func (agent *MetricsAgent) Report() error {
 }
 
 func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
-	const poolSize = 5
 
 	jobs := make(chan metric.Metric)
 	errCh := make(chan error, len(metrics))
@@ -126,57 +125,53 @@ func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
 
 	worker := func() {
 		defer wg.Done()
-		for {
-			select {
-			case m, ok := <-jobs:
-				if !ok {
-					return
-				}
+		slog.Debug("Worker start")
+		defer slog.Debug("Worker stop")
 
-				metricModel, err := agent.prepareMetric(m)
-				if err != nil {
-					slog.Error("Prepare metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-					select {
-					case errCh <- err:
-					default:
-					}
-					return
+		for m := range jobs {
+			metricModel, err := agent.prepareMetric(m)
+			if err != nil {
+				slog.Error("Prepare metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+				select {
+				case errCh <- err:
+				default:
 				}
+				return
+			}
 
-				raw, err := json.Marshal(metricModel)
-				if err != nil {
-					slog.Error("Marshal metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-					select {
-					case errCh <- err:
-					default:
-					}
-					return
+			raw, err := json.Marshal(metricModel)
+			if err != nil {
+				slog.Error("Marshal metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+				select {
+				case errCh <- err:
+				default:
 				}
+				return
+			}
 
-				buffer, err := agent.compressData(raw)
-				if err != nil {
-					slog.Error("Compress data error", slog.Any("metric", m), slog.String("error", err.Error()))
-					select {
-					case errCh <- err:
-					default:
-					}
-					return
+			buffer, err := agent.compressData(raw)
+			if err != nil {
+				slog.Error("Compress data error", slog.Any("metric", m), slog.String("error", err.Error()))
+				select {
+				case errCh <- err:
+				default:
 				}
+				return
+			}
 
-				if err := agent.sendRequest("/update/", buffer); err != nil {
-					slog.Error("Send metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-					select {
-					case errCh <- err:
-					default:
-					}
-					return
+			if err := agent.sendRequest("/update/", buffer); err != nil {
+				slog.Error("Send metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+				select {
+				case errCh <- err:
+				default:
 				}
+				return
 			}
 		}
 	}
 
-	wg.Add(poolSize)
-	for i := 0; i < poolSize; i++ {
+	wg.Add(agent.rateLimit)
+	for i := 0; i < agent.rateLimit; i++ {
 		go worker()
 	}
 
