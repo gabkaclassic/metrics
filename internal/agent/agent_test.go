@@ -21,14 +21,17 @@ import (
 
 func TestNewAgent(t *testing.T) {
 	dummyClient := httpclient.NewMockHTTPClient(t)
-	stats := &runtime.MemStats{}
 
-	agent := NewAgent(dummyClient, stats, true, "")
-
+	agent, err := NewAgent(dummyClient, true, "secret", 10)
+	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 	assert.Equal(t, dummyClient, agent.client)
-	assert.Equal(t, stats, agent.stats)
+	assert.NotNil(t, agent.stats)
 	assert.NotNil(t, agent.metrics)
+	assert.NotNil(t, agent.signer)
+	assert.True(t, agent.batchesEnabled)
+	assert.Equal(t, int64(10), agent.rateLimit)
+
 	assert.GreaterOrEqual(t, len(agent.metrics), 2)
 
 	foundPollCount := false
@@ -43,11 +46,13 @@ func TestNewAgent(t *testing.T) {
 	}
 	assert.True(t, foundPollCount)
 	assert.True(t, foundRandomValue)
+
+	assert.NotNil(t, agent.cpuStats)
+	assert.NotNil(t, agent.psMemStats)
 }
 
 func TestMetricsAgent_Poll(t *testing.T) {
 	stats := &runtime.MemStats{}
-
 	m1 := metric.NewMockMetric(t)
 	m2 := metric.NewMockMetric(t)
 
