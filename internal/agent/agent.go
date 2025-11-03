@@ -7,15 +7,19 @@ import (
 	"net/http"
 	"runtime"
 	"sync"
+	"time"
 
 	"encoding/json"
 	"log/slog"
 
 	"compress/gzip"
+
 	"github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
+	"github.com/shirou/gopsutil/v4/cpu"
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 type Agent interface {
@@ -26,6 +30,8 @@ type Agent interface {
 type MetricsAgent struct {
 	Agent
 	stats          *runtime.MemStats
+	psMemStats     *mem.VirtualMemoryStat
+	cpuStats       *[]float64
 	mu             *sync.RWMutex
 	client         httpclient.HTTPClient
 	metrics        []metric.Metric
@@ -33,7 +39,7 @@ type MetricsAgent struct {
 	signer         hash.Signer
 }
 
-func NewAgent(client httpclient.HTTPClient, stats *runtime.MemStats, batchesEnabled bool, signKey string) *MetricsAgent {
+func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string) (*MetricsAgent, error) {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},
@@ -43,22 +49,54 @@ func NewAgent(client httpclient.HTTPClient, stats *runtime.MemStats, batchesEnab
 	}
 
 	// Gauges runtime
+	stats := &runtime.MemStats{}
 	metrics = append(metrics, metric.RuntimeMetrics(stats)...)
 
-	signer := hash.NewSHA256Signer(signKey)
-
-	return &MetricsAgent{
+	agent := &MetricsAgent{
 		client:         client,
-		metrics:        metrics,
 		stats:          stats,
 		mu:             &sync.RWMutex{},
 		batchesEnabled: batchesEnabled,
-		signer:         signer,
 	}
+	cpuStats, err := cpu.Percent(1*time.Second, false)
+
+	if err != nil {
+		return nil, err
+	}
+
+	psMemStats, err := mem.VirtualMemory()
+
+	if err != nil {
+		return nil, err
+	}
+
+	agent.cpuStats = &cpuStats
+	agent.psMemStats = psMemStats
+
+	metrics = append(metrics, metric.PsMetrics(
+		func() *mem.VirtualMemoryStat { agent.mu.RLock(); defer agent.mu.RUnlock(); return agent.psMemStats },
+		func() *[]float64 { agent.mu.RLock(); defer agent.mu.RUnlock(); return agent.cpuStats },
+	)...)
+
+	agent.metrics = metrics
+
+	signer := hash.NewSHA256Signer(signKey)
+	agent.signer = signer
+
+	return agent, nil
 }
 
 func (agent *MetricsAgent) Poll() {
 	runtime.ReadMemStats(agent.stats)
+
+	cpuStats, err := cpu.Percent(1*time.Second, false)
+
+	if err != nil {
+		slog.Error("Poll CPU metrics error", slog.Any("error", err))
+	} else {
+		agent.cpuStats = &cpuStats
+	}
+
 	for _, metric := range agent.metrics {
 		metric.Update()
 	}

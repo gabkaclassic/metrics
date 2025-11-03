@@ -1,6 +1,7 @@
 package metric
 
 import (
+	"github.com/shirou/gopsutil/v4/mem"
 	"math/rand"
 	"runtime"
 )
@@ -56,6 +57,32 @@ func NewRuntimeGaugeMetric(name string, value ValueFunctionType) *RuntimeGaugeMe
 			_value: value,
 		},
 		name: name,
+	}
+}
+
+func PsMetrics(getMem func() *mem.VirtualMemoryStat, getCPU func() *[]float64) []Metric {
+	return []Metric{
+		NewRuntimeGaugeMetric("TotalMemory", func() float64 {
+			m := getMem()
+			if m == nil {
+				return 0
+			}
+			return float64(m.Total)
+		}),
+		NewRuntimeGaugeMetric("FreeMemory", func() float64 {
+			m := getMem()
+			if m == nil {
+				return 0
+			}
+			return float64(m.Free)
+		}),
+		NewRuntimeGaugeMetric("CPUutilization1", func() float64 {
+			cpu := getCPU()
+			if cpu == nil || len(*cpu) == 0 {
+				return 0
+			}
+			return (*cpu)[0]
+		}),
 	}
 }
 

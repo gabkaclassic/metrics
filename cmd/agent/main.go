@@ -1,10 +1,10 @@
 package main
 
 import (
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -15,9 +15,17 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func run() error {
 	cfg, err := config.ParseAgentConfig()
 
-	panicWithError(err)
+	if err != nil {
+		return err
+	}
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
@@ -27,11 +35,17 @@ func main() {
 		httpclient.MaxRetries(cfg.Client.Retries),
 	)
 
-	agent := agent.NewAgent(
-		client, &runtime.MemStats{}, cfg.BatchesEnabled, cfg.SignKey,
+	agent, err := agent.NewAgent(
+		client, cfg.BatchesEnabled, cfg.SignKey,
 	)
 
+	if err != nil {
+		return err
+	}
+
 	startAgent(cfg.PollInterval, cfg.ReportInterval, agent)
+
+	return nil
 }
 
 func startAgent(pollInterval time.Duration, reportInterval time.Duration, agent *agent.MetricsAgent) {
@@ -79,10 +93,4 @@ func startAgent(pollInterval time.Duration, reportInterval time.Duration, agent 
 	slog.Debug("Shutting down...")
 	close(done)
 	time.Sleep(100 * time.Millisecond)
-}
-
-func panicWithError(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
