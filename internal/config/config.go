@@ -31,6 +31,7 @@ type (
 		Log            Log
 		BatchesEnabled bool   `env:"BATCHES" envDefault:"true"`
 		SignKey        string `env:"KEY"`
+		RateLimit      int64  `env:"RATE_LIMIT" envDefault:"5"`
 	}
 	Client struct {
 		BaseURL string        `env:"ADDRESS" envDefault:"localhost:8080"`
@@ -159,6 +160,7 @@ func ParseAgentConfig() (*Agent, error) {
 	logJSON := flag.Bool("log-json", cfg.Log.JSON, "Enable JSON output for logs")
 
 	signKey := flag.String("k", cfg.SignKey, "Key to sign requests bodies")
+	rateLimit := flag.Int64("l", cfg.RateLimit, "Rate limits to send metric")
 
 	flag.Parse()
 
@@ -189,6 +191,8 @@ func ParseAgentConfig() (*Agent, error) {
 
 		case "k":
 			cfg.SignKey = *signKey
+		case "l":
+			cfg.RateLimit = *rateLimit
 		}
 	})
 

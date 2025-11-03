@@ -36,7 +36,7 @@ func run() error {
 	)
 
 	agent, err := agent.NewAgent(
-		client, cfg.BatchesEnabled, cfg.SignKey,
+		client, cfg.BatchesEnabled, cfg.SignKey, cfg.RateLimit,
 	)
 
 	if err != nil {

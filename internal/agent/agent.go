@@ -37,9 +37,10 @@ type MetricsAgent struct {
 	metrics        []metric.Metric
 	batchesEnabled bool
 	signer         hash.Signer
+	rateLimit      int64
 }
 
-func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string) (*MetricsAgent, error) {
+func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, rateLimit int64) (*MetricsAgent, error) {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},
@@ -57,6 +58,7 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string)
 		stats:          stats,
 		mu:             &sync.RWMutex{},
 		batchesEnabled: batchesEnabled,
+		rateLimit:      rateLimit,
 	}
 	cpuStats, err := cpu.Percent(1*time.Second, false)
 
@@ -115,55 +117,86 @@ func (agent *MetricsAgent) Report() error {
 }
 
 func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
-	var wg sync.WaitGroup
+	const poolSize = 5
+
+	jobs := make(chan metric.Metric)
 	errCh := make(chan error, len(metrics))
 
-	for _, m := range metrics {
-		wg.Add(1)
-		go func(metricEntity metric.Metric) {
-			defer wg.Done()
+	var wg sync.WaitGroup
 
-			metricModel, err := agent.prepareMetric(metricEntity)
-			if err != nil {
-				slog.Error("Prepare metric error", slog.Any("metric", metricEntity), slog.String("error", err.Error()))
-				errCh <- err
-				return
+	worker := func() {
+		defer wg.Done()
+		for {
+			select {
+			case m, ok := <-jobs:
+				if !ok {
+					return
+				}
+
+				metricModel, err := agent.prepareMetric(m)
+				if err != nil {
+					slog.Error("Prepare metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
+
+				raw, err := json.Marshal(metricModel)
+				if err != nil {
+					slog.Error("Marshal metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
+
+				buffer, err := agent.compressData(raw)
+				if err != nil {
+					slog.Error("Compress data error", slog.Any("metric", m), slog.String("error", err.Error()))
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
+
+				if err := agent.sendRequest("/update/", buffer); err != nil {
+					slog.Error("Send metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+					select {
+					case errCh <- err:
+					default:
+					}
+					return
+				}
 			}
+		}
+	}
 
-			raw, err := json.Marshal(metricModel)
-			if err != nil {
-				slog.Error("Marshal metric error", slog.Any("metric", metricEntity), slog.String("error", err.Error()))
-				errCh <- err
-				return
-			}
-
-			buffer, err := agent.compressData(raw)
-			if err != nil {
-				slog.Error("Compress data error", slog.Any("metric", metricEntity), slog.String("error", err.Error()))
-				errCh <- err
-				return
-			}
-
-			if err := agent.sendRequest("/update/", buffer); err != nil {
-				slog.Error("Send metric error", slog.Any("metric", metricEntity), slog.String("error", err.Error()))
-				errCh <- err
-			}
-
-		}(m)
+	wg.Add(poolSize)
+	for i := 0; i < poolSize; i++ {
+		go worker()
 	}
 
 	go func() {
-		wg.Wait()
-		close(errCh)
+		defer close(jobs)
+		for _, m := range metrics {
+			jobs <- m
+		}
 	}()
 
-	var errors []error
-	for err := range errCh {
-		errors = append(errors, err)
+	wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for e := range errCh {
+		errs = append(errs, e)
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("completed with %d errors: %v", len(errors), errors)
+	if len(errs) > 0 {
+		return fmt.Errorf("completed with %d errors: %v", len(errs), errs)
 	}
 
 	slog.Info("All individual metrics sent successfully", slog.Int("count", len(metrics)))
