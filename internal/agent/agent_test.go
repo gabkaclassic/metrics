@@ -275,3 +275,65 @@ func TestMetricsAgent_prepareMetric(t *testing.T) {
 		})
 	}
 }
+
+func Test_chunkMetrics(t *testing.T) {
+	t.Parallel()
+
+	m1 := metric.NewMockMetric(t)
+	m2 := metric.NewMockMetric(t)
+	m3 := metric.NewMockMetric(t)
+	m4 := metric.NewMockMetric(t)
+	m5 := metric.NewMockMetric(t)
+
+	tests := []struct {
+		name     string
+		metrics  []metric.Metric
+		size     int
+		expected int
+	}{
+		{
+			name:     "less than chunk size",
+			metrics:  []metric.Metric{m1, m2},
+			size:     5,
+			expected: 1,
+		},
+		{
+			name:     "equal to chunk size",
+			metrics:  []metric.Metric{m1, m2, m3},
+			size:     3,
+			expected: 1,
+		},
+		{
+			name:     "more than chunk size",
+			metrics:  []metric.Metric{m1, m2, m3, m4, m5},
+			size:     2,
+			expected: 3,
+		},
+		{
+			name:     "exact multiple of chunk size",
+			metrics:  []metric.Metric{m1, m2, m3, m4},
+			size:     2,
+			expected: 2,
+		},
+		{
+			name:     "chunk size greater than len(metrics)",
+			metrics:  []metric.Metric{},
+			size:     10,
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := chunkMetrics(tt.metrics, tt.size)
+			assert.Len(t, got, tt.expected)
+			if len(got) > 0 {
+				total := 0
+				for _, g := range got {
+					total += len(g)
+				}
+				assert.Equal(t, len(tt.metrics), total)
+			}
+		})
+	}
+}
