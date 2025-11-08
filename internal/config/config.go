@@ -174,7 +174,7 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.ReportInterval = time.Duration(*reportInterval) * time.Second
 		case "batches-enabled":
 			cfg.BatchesEnabled = *batchesEnabled
-		case "batche-size":
+		case "batch-size":
 			cfg.BatchSize = *batchSize
 
 		case "a":
