@@ -30,7 +30,7 @@ func TestNewAgent(t *testing.T) {
 	assert.NotNil(t, agent.metrics)
 	assert.NotNil(t, agent.signer)
 	assert.True(t, agent.batchesEnabled)
-	assert.Equal(t, int64(10), agent.rateLimit)
+	assert.Equal(t, 10, agent.rateLimit)
 
 	assert.GreaterOrEqual(t, len(agent.metrics), 2)
 
