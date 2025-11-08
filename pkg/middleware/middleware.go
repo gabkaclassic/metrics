@@ -53,8 +53,15 @@ func SignVerify(signKey string) middleware {
 
 			sign := r.Header.Get("Hash")
 			var bodyBytes []byte
+			var err error
 			if r.Body != nil {
-				bodyBytes, _ = io.ReadAll(r.Body)
+				bodyBytes, err = io.ReadAll(r.Body)
+
+				if err != nil {
+					apiErr := api.Internal("Internal server error", err)
+					api.RespondError(w, apiErr)
+					return
+				}
 			}
 			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
@@ -165,8 +172,15 @@ func Logger(handler http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", requestID)
 
 		var bodyBytes []byte
+		var err error
 		if r.Body != nil {
-			bodyBytes, _ = io.ReadAll(r.Body)
+			bodyBytes, err = io.ReadAll(r.Body)
+
+			if err != nil {
+				apiErr := api.Internal("Internal server error", err)
+				api.RespondError(w, apiErr)
+				return
+			}
 		}
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
