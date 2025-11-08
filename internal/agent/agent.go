@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,9 +39,12 @@ type MetricsAgent struct {
 	batchesEnabled bool
 	signer         hash.Signer
 	rateLimit      int
+	jobCh          chan []metric.Metric
+	wg             sync.WaitGroup
+	batchSize      int
 }
 
-func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, rateLimit int) (*MetricsAgent, error) {
+func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, rateLimit int, batchSize int) (*MetricsAgent, error) {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},
@@ -59,6 +63,8 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 		mu:             &sync.RWMutex{},
 		batchesEnabled: batchesEnabled,
 		rateLimit:      rateLimit,
+		jobCh:          make(chan []metric.Metric, 1),
+		batchSize:      batchSize,
 	}
 	cpuStats, err := cpu.Percent(1*time.Second, false)
 
@@ -89,31 +95,48 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 }
 
 func (agent *MetricsAgent) Poll() {
+	slog.Debug("Start metrics polling")
 	runtime.ReadMemStats(agent.stats)
 
 	cpuStats, err := cpu.Percent(1*time.Second, false)
-
 	if err != nil {
 		slog.Error("Poll CPU metrics error", slog.Any("error", err))
 	} else {
+		agent.mu.Lock()
 		agent.cpuStats = &cpuStats
+		agent.mu.Unlock()
 	}
 
 	for _, metric := range agent.metrics {
 		metric.Update()
 	}
-}
 
-func (agent *MetricsAgent) Report() error {
 	agent.mu.RLock()
 	metricCopy := make([]metric.Metric, len(agent.metrics))
 	copy(metricCopy, agent.metrics)
 	agent.mu.RUnlock()
 
-	if agent.batchesEnabled {
-		return agent.reportBatch(metricCopy)
+	select {
+	case agent.jobCh <- metricCopy:
+		slog.Debug("Queued metrics for reporting")
+	default:
+		slog.Warn("Previous report still in progress, skipping new metrics batch")
 	}
-	return agent.reportIndividual(metricCopy)
+	slog.Debug("Finish metrics polling")
+}
+
+func (agent *MetricsAgent) Report() error {
+	slog.Debug("Start metrics report")
+	select {
+	case metrics := <-agent.jobCh:
+		if agent.batchesEnabled {
+			return agent.reportBatchWithLimit(metrics)
+		}
+		return agent.reportIndividual(metrics)
+	default:
+		slog.Debug("No metrics to report")
+		return nil
+	}
 }
 
 func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
@@ -196,6 +219,51 @@ func (agent *MetricsAgent) reportWorker(wg *sync.WaitGroup, jobs <-chan metric.M
 			return
 		}
 	}
+}
+
+func (agent *MetricsAgent) reportBatchWithLimit(metrics []metric.Metric) error {
+
+	chunks := chunkMetrics(metrics, agent.batchSize)
+
+	sem := make(chan struct{}, agent.rateLimit)
+	errCh := make(chan error, len(chunks))
+	var wg sync.WaitGroup
+
+	for _, chunk := range chunks {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(chunk []metric.Metric) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			if err := agent.reportBatch(chunk); err != nil {
+				errCh <- err
+			}
+		}(chunk)
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for e := range errCh {
+		errs = append(errs, e)
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("batch sending completed with %d errors: %v", len(errs), errs)
+	}
+
+	slog.Info("All metric batches sent successfully", slog.Int("total", len(metrics)))
+	return nil
+}
+
+func chunkMetrics(metrics []metric.Metric, size int) [][]metric.Metric {
+	var chunks [][]metric.Metric
+	for size < len(metrics) {
+		metrics, chunks = metrics[size:], append(chunks, metrics[0:size:size])
+	}
+	chunks = append(chunks, metrics)
+	return chunks
 }
 
 func (agent *MetricsAgent) reportBatch(metrics []metric.Metric) error {
@@ -316,4 +384,55 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 	)
 
 	return nil
+}
+
+func (agent *MetricsAgent) dispatchReports(metrics []metric.Metric) error {
+	if agent.batchesEnabled {
+		return agent.reportBatch(metrics)
+	}
+
+	jobs := make(chan metric.Metric)
+	errCh := make(chan error, len(metrics))
+
+	for i := 0; i < agent.rateLimit; i++ {
+		agent.wg.Add(1)
+		go agent.reportWorker(&agent.wg, jobs, errCh)
+	}
+
+	go func() {
+		defer close(jobs)
+		for _, m := range metrics {
+			jobs <- m
+		}
+	}()
+
+	agent.wg.Wait()
+	close(errCh)
+
+	var errs []error
+	for e := range errCh {
+		errs = append(errs, e)
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("completed with %d errors: %v", len(errs), errs)
+	}
+	return nil
+}
+
+func (agent *MetricsAgent) StartReporting(ctx context.Context) {
+	for {
+		select {
+		case metrics := <-agent.jobCh:
+			slog.Debug("Starting metrics report...")
+			if err := agent.dispatchReports(metrics); err != nil {
+				slog.Error("Report error", slog.String("error", err.Error()))
+			} else {
+				slog.Info("Report completed successfully")
+			}
+		case <-ctx.Done():
+			slog.Info("Stopping reporter")
+			return
+		}
+	}
 }

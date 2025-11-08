@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -36,7 +37,7 @@ func run() error {
 	)
 
 	agent, err := agent.NewAgent(
-		client, cfg.BatchesEnabled, cfg.SignKey, cfg.RateLimit,
+		client, cfg.BatchesEnabled, cfg.SignKey, cfg.RateLimit, cfg.BatchSize,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize agent: %w", err)
@@ -47,49 +48,29 @@ func run() error {
 	return nil
 }
 
-func startAgent(pollInterval time.Duration, reportInterval time.Duration, agent *agent.MetricsAgent) {
+func startAgent(pollInterval, reportInterval time.Duration, agent *agent.MetricsAgent) {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	pollTicker := time.NewTicker(pollInterval)
 	reportTicker := time.NewTicker(reportInterval)
 	defer pollTicker.Stop()
 	defer reportTicker.Stop()
 
-	done := make(chan struct{})
-
-	go func() {
-		for {
-			select {
-			case <-pollTicker.C:
-				agent.Poll()
-				slog.Info("Poll completed")
-			case <-done:
-				return
+	for {
+		select {
+		case <-pollTicker.C:
+			agent.Poll()
+			slog.Info("Poll completed")
+		case <-reportTicker.C:
+			if err := agent.Report(); err != nil {
+				slog.Error("Report error", slog.String("error", err.Error()))
+			} else {
+				slog.Info("Report completed")
 			}
+		case <-ctx.Done():
+			slog.Info("Agent shutting down...")
+			return
 		}
-	}()
-
-	go func() {
-		for {
-			select {
-			case <-reportTicker.C:
-				if err := agent.Report(); err != nil {
-					slog.Error(
-						"Report error",
-						slog.String("error", err.Error()),
-					)
-				} else {
-					slog.Info("Report completed")
-				}
-			case <-done:
-				return
-			}
-		}
-	}()
-
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
-
-	<-sigChan
-	slog.Debug("Shutting down...")
-	close(done)
-	time.Sleep(100 * time.Millisecond)
+	}
 }

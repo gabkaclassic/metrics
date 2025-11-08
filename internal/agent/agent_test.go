@@ -22,7 +22,7 @@ import (
 func TestNewAgent(t *testing.T) {
 	dummyClient := httpclient.NewMockHTTPClient(t)
 
-	agent, err := NewAgent(dummyClient, true, "secret", 10)
+	agent, err := NewAgent(dummyClient, true, "secret", 10, 100)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 	assert.Equal(t, dummyClient, agent.client)
