@@ -123,56 +123,9 @@ func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
 
 	var wg sync.WaitGroup
 
-	worker := func() {
-		defer wg.Done()
-		slog.Debug("Worker start")
-		defer slog.Debug("Worker stop")
-
-		for m := range jobs {
-			metricModel, err := agent.prepareMetric(m)
-			if err != nil {
-				slog.Error("Prepare metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-				select {
-				case errCh <- err:
-				default:
-				}
-				return
-			}
-
-			raw, err := json.Marshal(metricModel)
-			if err != nil {
-				slog.Error("Marshal metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-				select {
-				case errCh <- err:
-				default:
-				}
-				return
-			}
-
-			buffer, err := agent.compressData(raw)
-			if err != nil {
-				slog.Error("Compress data error", slog.Any("metric", m), slog.String("error", err.Error()))
-				select {
-				case errCh <- err:
-				default:
-				}
-				return
-			}
-
-			if err := agent.sendRequest("/update/", buffer); err != nil {
-				slog.Error("Send metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-				select {
-				case errCh <- err:
-				default:
-				}
-				return
-			}
-		}
-	}
-
 	wg.Add(agent.rateLimit)
 	for i := 0; i < agent.rateLimit; i++ {
-		go worker()
+		go agent.reportWorker(&wg, jobs, errCh)
 	}
 
 	go func() {
@@ -196,6 +149,53 @@ func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
 
 	slog.Info("All individual metrics sent successfully", slog.Int("count", len(metrics)))
 	return nil
+}
+
+func (agent *MetricsAgent) reportWorker(wg *sync.WaitGroup, jobs <-chan metric.Metric, errCh chan<- error) {
+	defer wg.Done()
+	slog.Debug("Worker start")
+	defer slog.Debug("Worker stop")
+
+	for m := range jobs {
+		metricModel, err := agent.prepareMetric(m)
+		if err != nil {
+			slog.Error("Prepare metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+			select {
+			case errCh <- err:
+			default:
+			}
+			return
+		}
+
+		raw, err := json.Marshal(metricModel)
+		if err != nil {
+			slog.Error("Marshal metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+			select {
+			case errCh <- err:
+			default:
+			}
+			return
+		}
+
+		buffer, err := agent.compressData(raw)
+		if err != nil {
+			slog.Error("Compress data error", slog.Any("metric", m), slog.String("error", err.Error()))
+			select {
+			case errCh <- err:
+			default:
+			}
+			return
+		}
+
+		if err := agent.sendRequest("/update/", buffer); err != nil {
+			slog.Error("Send metric error", slog.Any("metric", m), slog.String("error", err.Error()))
+			select {
+			case errCh <- err:
+			default:
+			}
+			return
+		}
+	}
 }
 
 func (agent *MetricsAgent) reportBatch(metrics []metric.Metric) error {
