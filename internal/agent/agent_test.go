@@ -52,6 +52,8 @@ func TestNewAgent(t *testing.T) {
 }
 
 func TestMetricsAgent_Poll(t *testing.T) {
+	t.Parallel()
+
 	stats := &runtime.MemStats{}
 	m1 := metric.NewMockMetric(t)
 	m2 := metric.NewMockMetric(t)
@@ -59,17 +61,26 @@ func TestMetricsAgent_Poll(t *testing.T) {
 	m1.EXPECT().Update().Return()
 	m2.EXPECT().Update().Return()
 
+	jobCh := make(chan []metric.Metric, 1)
+
 	agent := &MetricsAgent{
-		stats: stats,
-		metrics: []metric.Metric{
-			m1,
-			m2,
-		},
+		stats:   stats,
+		metrics: []metric.Metric{m1, m2},
+		mu:      &sync.RWMutex{},
+		jobCh:   jobCh,
 	}
 
 	agent.Poll()
 
-	assert.NotZero(t, stats.Alloc)
+	assert.NotZero(t, stats.Alloc, "expected runtime stats to be populated")
+
+	select {
+	case batch := <-jobCh:
+		assert.Len(t, batch, 2, "expected two metrics in the queued batch")
+		assert.Equal(t, []metric.Metric{m1, m2}, batch)
+	default:
+		t.Fatal("expected metrics to be queued for reporting")
+	}
 }
 
 func TestMetricsAgent_sendRequest(t *testing.T) {
