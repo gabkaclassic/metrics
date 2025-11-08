@@ -120,7 +120,7 @@ func (agent *MetricsAgent) Poll() {
 	case agent.jobCh <- metricCopy:
 		slog.Debug("Queued metrics for reporting")
 	default:
-		slog.Warn("Previous report still in progress, skipping new metrics batch")
+		slog.Debug("Previous report still in progress, skipping new metrics batch")
 	}
 	slog.Debug("Finish metrics polling")
 }
@@ -268,7 +268,6 @@ func chunkMetrics(metrics []metric.Metric, size int) [][]metric.Metric {
 
 func (agent *MetricsAgent) reportBatch(metrics []metric.Metric) error {
 	var metricModels []models.Metrics
-
 	for _, m := range metrics {
 		metricModel, err := agent.prepareMetric(m)
 		if err != nil {
