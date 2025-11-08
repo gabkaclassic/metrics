@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"log/slog"
 	"os"
@@ -22,9 +23,8 @@ func main() {
 
 func run() error {
 	cfg, err := config.ParseAgentConfig()
-
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse agent configuration: %w", err)
 	}
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
@@ -38,9 +38,8 @@ func run() error {
 	agent, err := agent.NewAgent(
 		client, cfg.BatchesEnabled, cfg.SignKey, cfg.RateLimit,
 	)
-
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize agent: %w", err)
 	}
 
 	startAgent(cfg.PollInterval, cfg.ReportInterval, agent)
