@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/stretchr/testify/assert"
@@ -20,14 +21,17 @@ import (
 
 func TestNewAgent(t *testing.T) {
 	dummyClient := httpclient.NewMockHTTPClient(t)
-	stats := &runtime.MemStats{}
 
-	agent := NewAgent(dummyClient, stats, true)
-
+	agent, err := NewAgent(dummyClient, true, "secret", 10, 100)
+	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 	assert.Equal(t, dummyClient, agent.client)
-	assert.Equal(t, stats, agent.stats)
+	assert.NotNil(t, agent.stats)
 	assert.NotNil(t, agent.metrics)
+	assert.NotNil(t, agent.signer)
+	assert.True(t, agent.batchesEnabled)
+	assert.Equal(t, 10, agent.rateLimit)
+
 	assert.GreaterOrEqual(t, len(agent.metrics), 2)
 
 	foundPollCount := false
@@ -42,28 +46,41 @@ func TestNewAgent(t *testing.T) {
 	}
 	assert.True(t, foundPollCount)
 	assert.True(t, foundRandomValue)
+
+	assert.NotNil(t, agent.cpuStats)
+	assert.NotNil(t, agent.psMemStats)
 }
 
 func TestMetricsAgent_Poll(t *testing.T) {
-	stats := &runtime.MemStats{}
+	t.Parallel()
 
+	stats := &runtime.MemStats{}
 	m1 := metric.NewMockMetric(t)
 	m2 := metric.NewMockMetric(t)
 
 	m1.EXPECT().Update().Return()
 	m2.EXPECT().Update().Return()
 
+	jobCh := make(chan []metric.Metric, 1)
+
 	agent := &MetricsAgent{
-		stats: stats,
-		metrics: []metric.Metric{
-			m1,
-			m2,
-		},
+		stats:   stats,
+		metrics: []metric.Metric{m1, m2},
+		mu:      &sync.RWMutex{},
+		jobCh:   jobCh,
 	}
 
 	agent.Poll()
 
-	assert.NotZero(t, stats.Alloc)
+	assert.NotZero(t, stats.Alloc, "expected runtime stats to be populated")
+
+	select {
+	case batch := <-jobCh:
+		assert.Len(t, batch, 2, "expected two metrics in the queued batch")
+		assert.Equal(t, []metric.Metric{m1, m2}, batch)
+	default:
+		t.Fatal("expected metrics to be queued for reporting")
+	}
 }
 
 func TestMetricsAgent_sendRequest(t *testing.T) {
@@ -112,6 +129,7 @@ func TestMetricsAgent_sendRequest(t *testing.T) {
 			m := &MetricsAgent{
 				client: mockClient,
 				mu:     &sync.RWMutex{},
+				signer: hash.NewSHA256Signer(""),
 			}
 
 			err := m.sendRequest(endpoint, body)
@@ -253,6 +271,68 @@ func TestMetricsAgent_prepareMetric(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedMetric, result)
+			}
+		})
+	}
+}
+
+func Test_chunkMetrics(t *testing.T) {
+	t.Parallel()
+
+	m1 := metric.NewMockMetric(t)
+	m2 := metric.NewMockMetric(t)
+	m3 := metric.NewMockMetric(t)
+	m4 := metric.NewMockMetric(t)
+	m5 := metric.NewMockMetric(t)
+
+	tests := []struct {
+		name     string
+		metrics  []metric.Metric
+		size     int
+		expected int
+	}{
+		{
+			name:     "less than chunk size",
+			metrics:  []metric.Metric{m1, m2},
+			size:     5,
+			expected: 1,
+		},
+		{
+			name:     "equal to chunk size",
+			metrics:  []metric.Metric{m1, m2, m3},
+			size:     3,
+			expected: 1,
+		},
+		{
+			name:     "more than chunk size",
+			metrics:  []metric.Metric{m1, m2, m3, m4, m5},
+			size:     2,
+			expected: 3,
+		},
+		{
+			name:     "exact multiple of chunk size",
+			metrics:  []metric.Metric{m1, m2, m3, m4},
+			size:     2,
+			expected: 2,
+		},
+		{
+			name:     "chunk size greater than len(metrics)",
+			metrics:  []metric.Metric{},
+			size:     10,
+			expected: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := chunkMetrics(tt.metrics, tt.size)
+			assert.Len(t, got, tt.expected)
+			if len(got) > 0 {
+				total := 0
+				for _, g := range got {
+					total += len(g)
+				}
+				assert.Equal(t, len(tt.metrics), total)
 			}
 		})
 	}

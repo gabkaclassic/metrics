@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"log/slog"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 )
 
 func main() {
+
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
@@ -29,9 +31,8 @@ func main() {
 func run() error {
 	cfg, err := config.ParseServerConfig()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to parse server configuration: %w", err)
 	}
-
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
 	var metricsRepository repository.MetricsRepository
@@ -41,13 +42,13 @@ func run() error {
 	if len(cfg.DB.DSN) > 0 {
 		storage, err := storage.NewDBStorage(cfg.DB)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to initialize database storage: %w", err)
 		}
 		defer storage.Close()
 
 		metricsRepository, err = repository.NewDBMetricsRepository(storage)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create metrics repository (DB): %w", err)
 		}
 
 		slog.Info("Using database storage")
@@ -57,12 +58,12 @@ func run() error {
 
 		metricsRepository, err = repository.NewMemoryMetricsRepository(storage, storageMutex)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create metrics repository (in-memory): %w", err)
 		}
 
 		dumper, err = dump.NewDumper(cfg.Dump.FileStoragePath, metricsRepository)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to initialize dumper: %w", err)
 		}
 
 		slog.Info("Using file storage with dumper", "dump_file", cfg.Dump.FileStoragePath)
@@ -72,9 +73,9 @@ func run() error {
 		readDump(cfg.Dump, dumper)
 	}
 
-	router, err := setupRouter(&metricsRepository)
+	router, err := setupRouter(&metricsRepository, cfg.SignKey)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to setup HTTP router: %w", err)
 	}
 
 	server := httpserver.New(
@@ -104,7 +105,7 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(metricsRepository *repository.MetricsRepository) (http.Handler, error) {
+func setupRouter(metricsRepository *repository.MetricsRepository, signKey string) (http.Handler, error) {
 
 	// Metrics
 	metricsService, err := service.NewMetricsService(*metricsRepository)
@@ -121,5 +122,6 @@ func setupRouter(metricsRepository *repository.MetricsRepository) (http.Handler,
 
 	return handler.SetupRouter(&handler.RouterConfiguration{
 		MetricsHandler: metricsHandler,
+		SignKey:        signKey,
 	}), nil
 }

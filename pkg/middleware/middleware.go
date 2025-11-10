@@ -10,6 +10,7 @@ import (
 
 	"github.com/gabkaclassic/metrics/pkg/compress"
 	api "github.com/gabkaclassic/metrics/pkg/error"
+	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/google/uuid"
 )
 
@@ -36,6 +37,44 @@ var compressors = map[CompressType]func(http.ResponseWriter) (*compress.Compress
 
 var decompressors = map[CompressType]func(io.ReadCloser) (*compress.CompressReader, error){
 	GZIP: compress.NewGzipReader,
+}
+
+func SignVerify(signKey string) middleware {
+
+	verifier := hash.NewSHA256Verifier(signKey)
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+			if r.Method != http.MethodPost || r.Header.Get("Accept-Encoding") != "" {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			sign := r.Header.Get("Hash")
+			var bodyBytes []byte
+			var err error
+			if r.Body != nil {
+				bodyBytes, err = io.ReadAll(r.Body)
+
+				if err != nil {
+					apiErr := api.Internal("Internal server error", err)
+					api.RespondError(w, apiErr)
+					return
+				}
+			}
+			r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+			if !verifier.Verify(bodyBytes, sign) {
+				err := api.BadRequest("Data sign is invalid")
+				api.RespondError(w, err)
+				return
+			}
+			slog.Debug("Data sign verified successful")
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func Compress(compressMapping map[ContentType]CompressType) middleware {
@@ -133,8 +172,15 @@ func Logger(handler http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", requestID)
 
 		var bodyBytes []byte
+		var err error
 		if r.Body != nil {
-			bodyBytes, _ = io.ReadAll(r.Body)
+			bodyBytes, err = io.ReadAll(r.Body)
+
+			if err != nil {
+				apiErr := api.Internal("Internal server error", err)
+				api.RespondError(w, apiErr)
+				return
+			}
 		}
 		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 

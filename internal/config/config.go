@@ -14,6 +14,7 @@ import (
 type (
 	Server struct {
 		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
+		SignKey string `env:"KEY"`
 		Log     Log
 		Dump    Dump
 		DB      DB
@@ -28,7 +29,10 @@ type (
 		ReportInterval time.Duration `env:"REPORT_INTERVAL" envDefault:"10"`
 		Client         Client
 		Log            Log
-		BatchesEnabled bool `env:"BATCHES" envDefault:"true"`
+		BatchesEnabled bool   `env:"BATCHES" envDefault:"true"`
+		SignKey        string `env:"KEY"`
+		RateLimit      int    `env:"RATE_LIMIT" envDefault:"5"`
+		BatchSize      int    `env:"BATCH_SIZE" envDefault:"100"`
 	}
 	Client struct {
 		BaseURL string        `env:"ADDRESS" envDefault:"localhost:8080"`
@@ -95,6 +99,8 @@ func ParseServerConfig() (*Server, error) {
 	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
 	dbMigrationsPath := flag.String("db-migrations-path", cfg.DB.MigrationsPath, "Migrations file path")
 
+	signKey := flag.String("k", cfg.SignKey, "Key to verify requests bodies")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
@@ -124,6 +130,9 @@ func ParseServerConfig() (*Server, error) {
 			cfg.DB.DSN = *dbDSN
 		case "db-migrations-path":
 			cfg.DB.MigrationsPath = *dbMigrationsPath
+
+		case "k":
+			cfg.SignKey = *signKey
 		}
 	})
 
@@ -145,11 +154,15 @@ func ParseAgentConfig() (*Agent, error) {
 	retries := flag.Int("report-retries", cfg.Client.Retries, "Max update metrics retries")
 	timeout := flag.Uint("report-timeout", uint(cfg.Client.Timeout.Seconds()), "Metrics update timeout (seconds)")
 	batchesEnabled := flag.Bool("batches-enabled", cfg.BatchesEnabled, "Batches using enabled")
+	batchSize := flag.Int("batch-size", cfg.BatchSize, "Batches sizes")
 
 	logLevel := flag.String("log-level", cfg.Log.Level, "Logging level")
 	logFile := flag.String("log-file", cfg.Log.File, "Log file path")
 	logConsole := flag.Bool("log-console", cfg.Log.Console, "Enable console logging")
 	logJSON := flag.Bool("log-json", cfg.Log.JSON, "Enable JSON output for logs")
+
+	signKey := flag.String("k", cfg.SignKey, "Key to sign requests bodies")
+	rateLimit := flag.Int("l", cfg.RateLimit, "Rate limits to send metric")
 
 	flag.Parse()
 
@@ -159,12 +172,18 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.PollInterval = time.Duration(*pollInterval) * time.Second
 		case "r":
 			cfg.ReportInterval = time.Duration(*reportInterval) * time.Second
+		case "batches-enabled":
+			cfg.BatchesEnabled = *batchesEnabled
+		case "batch-size":
+			cfg.BatchSize = *batchSize
+
 		case "a":
 			cfg.Client.BaseURL = *serverAddress
 		case "report-retries":
 			cfg.Client.Retries = *retries
 		case "report-timeout":
 			cfg.Client.Timeout = time.Duration(*timeout) * time.Second
+
 		case "log-level":
 			cfg.Log.Level = *logLevel
 		case "log-file":
@@ -173,8 +192,11 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.Log.Console = *logConsole
 		case "log-json":
 			cfg.Log.JSON = *logJSON
-		case "batches-enabled":
-			cfg.BatchesEnabled = *batchesEnabled
+
+		case "k":
+			cfg.SignKey = *signKey
+		case "l":
+			cfg.RateLimit = *rateLimit
 		}
 	})
 

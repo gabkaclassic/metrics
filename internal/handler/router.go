@@ -10,6 +10,7 @@ import (
 
 type RouterConfiguration struct {
 	MetricsHandler *MetricsHandler
+	SignKey        string
 }
 
 func SetupRouter(config *RouterConfiguration) http.Handler {
@@ -18,18 +19,22 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 
 	router.Use(
 		middleware.Logger,
-		middleware.Decompress(),
 	)
 
 	// Ping endpoint
 	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {})
 
-	setupMetricsRouter(router, config.MetricsHandler)
+	setupMetricsRouter(router, config.MetricsHandler, middleware.Decompress(), middleware.SignVerify(config.SignKey))
 
 	return router
 }
 
-func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
+func setupMetricsRouter(
+	router *chi.Mux,
+	handler *MetricsHandler,
+	decompressMiddleware func(handler http.Handler) http.Handler,
+	signVerifyMiddleware func(handler http.Handler) http.Handler,
+) {
 	// Metrics
 	router.Get(
 		"/",
@@ -40,6 +45,7 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 				middleware.HTMLUTF8: middleware.GZIP,
 			}),
 			middleware.WithContentType(middleware.HTML),
+			decompressMiddleware,
 		),
 	)
 	router.Post(
@@ -51,6 +57,8 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 				middleware.JSON: middleware.GZIP,
 			}),
 			middleware.WithContentType(middleware.JSON),
+			decompressMiddleware,
+			signVerifyMiddleware,
 		),
 	)
 	router.Post(
@@ -62,6 +70,8 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 				middleware.JSON: middleware.GZIP,
 			}),
 			middleware.WithContentType(middleware.JSON),
+			decompressMiddleware,
+			signVerifyMiddleware,
 		),
 	)
 	router.Post(
@@ -73,6 +83,7 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 				middleware.JSON: middleware.GZIP,
 			}),
 			middleware.WithContentType(middleware.JSON),
+			decompressMiddleware,
 		),
 	)
 	router.Post(
@@ -80,6 +91,7 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 		middleware.Wrap(
 			http.HandlerFunc(handler.Save),
 			middleware.WithContentType(middleware.TEXT),
+			decompressMiddleware,
 		),
 	)
 	router.Get(
@@ -90,6 +102,7 @@ func setupMetricsRouter(router *chi.Mux, handler *MetricsHandler) {
 				middleware.JSON: middleware.GZIP,
 			}),
 			middleware.WithContentType(middleware.JSON),
+			decompressMiddleware,
 		),
 	)
 }
