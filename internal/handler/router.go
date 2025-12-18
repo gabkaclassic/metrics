@@ -19,6 +19,7 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 
 	router.Use(
 		middleware.Logger,
+		middleware.AuditContext,
 	)
 
 	// Ping endpoint

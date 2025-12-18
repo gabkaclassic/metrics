@@ -56,7 +56,7 @@ func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 	metricType := r.PathValue("type")
 	metricValue := r.PathValue("value")
 
-	err := handler.service.Save(metricID, metricType, metricValue)
+	err := handler.service.Save(r.Context(), metricID, metricType, metricValue)
 
 	if err != nil {
 		api.RespondError(w, err)
@@ -72,7 +72,7 @@ func (handler *MetricsHandler) SaveJSON(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	saveErr := handler.service.SaveStruct(*metric)
+	saveErr := handler.service.SaveStruct(r.Context(), *metric)
 
 	if saveErr != nil {
 		api.RespondError(w, saveErr)
@@ -95,7 +95,7 @@ func (handler *MetricsHandler) SaveAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	saveErr := handler.service.SaveAll(&metrics)
+	saveErr := handler.service.SaveAll(r.Context(), &metrics)
 
 	if saveErr != nil {
 		api.RespondError(w, saveErr)
@@ -108,7 +108,7 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	metricID := r.PathValue("id")
 	metricType := r.PathValue("type")
 
-	value, err := handler.service.Get(metricID, metricType)
+	value, err := handler.service.Get(r.Context(), metricID, metricType)
 
 	if err != nil {
 		api.RespondError(w, err)
@@ -133,7 +133,7 @@ func (handler *MetricsHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	value, getErr := handler.service.GetStruct(metric.ID, metric.MType)
+	value, getErr := handler.service.GetStruct(r.Context(), metric.ID, metric.MType)
 
 	if getErr != nil {
 		api.RespondError(w, getErr)
@@ -149,7 +149,7 @@ func (handler *MetricsHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
-	metrics, err := handler.service.GetAll()
+	metrics, err := handler.service.GetAll(r.Context())
 
 	if err != nil {
 		api.RespondError(w, err)
