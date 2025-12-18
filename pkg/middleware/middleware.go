@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"log/slog"
 	"net/http"
@@ -14,22 +15,27 @@ import (
 	"github.com/google/uuid"
 )
 
-type middleware func(handler http.Handler) http.Handler
+type (
+	middleware func(handler http.Handler) http.Handler
 
-type ContentType string
+	ContentType string
+
+	ContextKey string
+)
 
 const (
 	JSON     ContentType = "application/json"
 	TEXT     ContentType = "text/plain; charset=utf-8"
 	HTML     ContentType = "text/html"
 	HTMLUTF8 ContentType = "text/html; charset=utf-8"
+
+	GZIP CompressType = "gzip"
+
+	ctxIPKey ContextKey = "sourceIP"
+	ctxTSKey ContextKey = "ts"
 )
 
 type CompressType string
-
-const (
-	GZIP CompressType = "gzip"
-)
 
 var compressors = map[CompressType]func(http.ResponseWriter) (*compress.CompressWriter, error){
 	GZIP: compress.NewGzipWriter,
@@ -203,4 +209,32 @@ func Logger(handler http.Handler) http.Handler {
 			slog.Duration("duration", duration),
 		)
 	})
+}
+
+func AuditContext(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ip := r.RemoteAddr
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			ip = strings.TrimSpace(strings.Split(xff, ",")[0])
+		}
+
+		ctx := context.WithValue(r.Context(), ctxIPKey, ip)
+		ctx = context.WithValue(ctx, ctxTSKey, time.Now().Unix())
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func AuditIPFromCtx(ctx context.Context) string {
+	if v, ok := ctx.Value(ctxIPKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
+func AuditTsFromCtx(ctx context.Context) int64 {
+	if v, ok := ctx.Value(ctxTSKey).(int64); ok {
+		return v
+	}
+	return 0
 }
