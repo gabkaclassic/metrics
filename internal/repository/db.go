@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -31,10 +32,10 @@ func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
 	}, nil
 }
 
-func (repository *dbMetricsRepository) GetAllMetrics() (*[]models.Metrics, error) {
+func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) (*[]models.Metrics, error) {
 	metrics := make([]models.Metrics, 0)
 	err := repository.executeWithRetry(func() error {
-		rows, err := repository.storage.Query("SELECT id, type, delta, value FROM metric;")
+		rows, err := repository.storage.QueryContext(ctx, "SELECT id, type, delta, value FROM metric;")
 		if err != nil {
 			return err
 		}
@@ -60,10 +61,10 @@ func (repository *dbMetricsRepository) GetAllMetrics() (*[]models.Metrics, error
 	return &metrics, nil
 }
 
-func (repository *dbMetricsRepository) GetAll() (*map[string]any, error) {
+func (repository *dbMetricsRepository) GetAll(ctx context.Context) (*map[string]any, error) {
 	var metrics *map[string]any
 	err := repository.executeWithRetry(func() error {
-		rows, err := repository.storage.Query("SELECT id, type, delta, value FROM metric;")
+		rows, err := repository.storage.QueryContext(ctx, "SELECT id, type, delta, value FROM metric;")
 		if err != nil {
 			return err
 		}
@@ -97,11 +98,12 @@ func (repository *dbMetricsRepository) GetAll() (*map[string]any, error) {
 	return metrics, nil
 }
 
-func (repository *dbMetricsRepository) Get(metricID string) (*models.Metrics, error) {
+func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string) (*models.Metrics, error) {
 	var metric *models.Metrics
 	err := repository.executeWithRetry(func() error {
 		m := models.Metrics{}
-		err := repository.storage.QueryRow(
+		err := repository.storage.QueryRowContext(
+			ctx,
 			"SELECT id, type, delta, value FROM metric WHERE id = $1",
 			metricID,
 		).
@@ -123,15 +125,16 @@ func (repository *dbMetricsRepository) Get(metricID string) (*models.Metrics, er
 	return metric, nil
 }
 
-func (repository *dbMetricsRepository) Add(metric models.Metrics) error {
+func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
 		defer tx.Rollback()
 
-		_, err = tx.Exec(
+		_, err = tx.ExecContext(
+			ctx,
 			`INSERT INTO metric (id, type, delta)
             VALUES ($1, 'counter', $2)
             ON CONFLICT (id)
@@ -147,9 +150,9 @@ func (repository *dbMetricsRepository) Add(metric models.Metrics) error {
 	})
 }
 
-func (repository *dbMetricsRepository) AddAll(metrics *[]models.Metrics) error {
+func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics *[]models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -163,7 +166,9 @@ func (repository *dbMetricsRepository) AddAll(metrics *[]models.Metrics) error {
 			deltas[i] = *metric.Delta
 		}
 
-		_, err = tx.Exec(`
+		_, err = tx.ExecContext(
+			ctx,
+			`
             INSERT INTO metric (id, type, delta)
             SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
             ON CONFLICT (id) DO UPDATE 
@@ -178,16 +183,17 @@ func (repository *dbMetricsRepository) AddAll(metrics *[]models.Metrics) error {
 	})
 }
 
-func (repository *dbMetricsRepository) Reset(metric models.Metrics) error {
+func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
 
 		defer tx.Rollback()
 
-		_, err = tx.Exec(
+		_, err = tx.ExecContext(
+			ctx,
 			`INSERT INTO metric (id, type, value)
 			VALUES ($1, 'gauge', $2)
 			ON CONFLICT (id)
@@ -203,9 +209,9 @@ func (repository *dbMetricsRepository) Reset(metric models.Metrics) error {
 	})
 }
 
-func (repository *dbMetricsRepository) ResetAll(metrics *[]models.Metrics) error {
+func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics *[]models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
@@ -220,7 +226,9 @@ func (repository *dbMetricsRepository) ResetAll(metrics *[]models.Metrics) error
 			values[i] = *metric.Value
 		}
 
-		_, err = tx.Exec(`
+		_, err = tx.ExecContext(
+			ctx,
+			`
 			INSERT INTO metric (id, type, value)
 			SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
 			ON CONFLICT (id) DO UPDATE 
