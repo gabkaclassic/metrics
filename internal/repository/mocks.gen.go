@@ -5,6 +5,8 @@
 package repository
 
 import (
+	"context"
+
 	"github.com/gabkaclassic/metrics/internal/model"
 	mock "github.com/stretchr/testify/mock"
 )
@@ -37,16 +39,16 @@ func (_m *MockMetricsRepository) EXPECT() *MockMetricsRepository_Expecter {
 }
 
 // Add provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) Add(metric models.Metrics) error {
-	ret := _mock.Called(metric)
+func (_mock *MockMetricsRepository) Add(context1 context.Context, metrics models.Metrics) error {
+	ret := _mock.Called(context1, metrics)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Add")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(models.Metrics) error); ok {
-		r0 = returnFunc(metric)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, models.Metrics) error); ok {
+		r0 = returnFunc(context1, metrics)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -59,19 +61,25 @@ type MockMetricsRepository_Add_Call struct {
 }
 
 // Add is a helper method to define mock.On call
-//   - metric models.Metrics
-func (_e *MockMetricsRepository_Expecter) Add(metric interface{}) *MockMetricsRepository_Add_Call {
-	return &MockMetricsRepository_Add_Call{Call: _e.mock.On("Add", metric)}
+//   - context1 context.Context
+//   - metrics models.Metrics
+func (_e *MockMetricsRepository_Expecter) Add(context1 interface{}, metrics interface{}) *MockMetricsRepository_Add_Call {
+	return &MockMetricsRepository_Add_Call{Call: _e.mock.On("Add", context1, metrics)}
 }
 
-func (_c *MockMetricsRepository_Add_Call) Run(run func(metric models.Metrics)) *MockMetricsRepository_Add_Call {
+func (_c *MockMetricsRepository_Add_Call) Run(run func(context1 context.Context, metrics models.Metrics)) *MockMetricsRepository_Add_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 models.Metrics
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(models.Metrics)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 models.Metrics
+		if args[1] != nil {
+			arg1 = args[1].(models.Metrics)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -82,22 +90,22 @@ func (_c *MockMetricsRepository_Add_Call) Return(err error) *MockMetricsReposito
 	return _c
 }
 
-func (_c *MockMetricsRepository_Add_Call) RunAndReturn(run func(metric models.Metrics) error) *MockMetricsRepository_Add_Call {
+func (_c *MockMetricsRepository_Add_Call) RunAndReturn(run func(context1 context.Context, metrics models.Metrics) error) *MockMetricsRepository_Add_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // AddAll provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) AddAll(metrics *[]models.Metrics) error {
-	ret := _mock.Called(metrics)
+func (_mock *MockMetricsRepository) AddAll(context1 context.Context, metricss *[]models.Metrics) error {
+	ret := _mock.Called(context1, metricss)
 
 	if len(ret) == 0 {
 		panic("no return value specified for AddAll")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(*[]models.Metrics) error); ok {
-		r0 = returnFunc(metrics)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *[]models.Metrics) error); ok {
+		r0 = returnFunc(context1, metricss)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -110,19 +118,25 @@ type MockMetricsRepository_AddAll_Call struct {
 }
 
 // AddAll is a helper method to define mock.On call
-//   - metrics *[]models.Metrics
-func (_e *MockMetricsRepository_Expecter) AddAll(metrics interface{}) *MockMetricsRepository_AddAll_Call {
-	return &MockMetricsRepository_AddAll_Call{Call: _e.mock.On("AddAll", metrics)}
+//   - context1 context.Context
+//   - metricss *[]models.Metrics
+func (_e *MockMetricsRepository_Expecter) AddAll(context1 interface{}, metricss interface{}) *MockMetricsRepository_AddAll_Call {
+	return &MockMetricsRepository_AddAll_Call{Call: _e.mock.On("AddAll", context1, metricss)}
 }
 
-func (_c *MockMetricsRepository_AddAll_Call) Run(run func(metrics *[]models.Metrics)) *MockMetricsRepository_AddAll_Call {
+func (_c *MockMetricsRepository_AddAll_Call) Run(run func(context1 context.Context, metricss *[]models.Metrics)) *MockMetricsRepository_AddAll_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *[]models.Metrics
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(*[]models.Metrics)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *[]models.Metrics
+		if args[1] != nil {
+			arg1 = args[1].(*[]models.Metrics)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -133,14 +147,14 @@ func (_c *MockMetricsRepository_AddAll_Call) Return(err error) *MockMetricsRepos
 	return _c
 }
 
-func (_c *MockMetricsRepository_AddAll_Call) RunAndReturn(run func(metrics *[]models.Metrics) error) *MockMetricsRepository_AddAll_Call {
+func (_c *MockMetricsRepository_AddAll_Call) RunAndReturn(run func(context1 context.Context, metricss *[]models.Metrics) error) *MockMetricsRepository_AddAll_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Get provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) Get(metricID string) (*models.Metrics, error) {
-	ret := _mock.Called(metricID)
+func (_mock *MockMetricsRepository) Get(context1 context.Context, s string) (*models.Metrics, error) {
+	ret := _mock.Called(context1, s)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Get")
@@ -148,18 +162,18 @@ func (_mock *MockMetricsRepository) Get(metricID string) (*models.Metrics, error
 
 	var r0 *models.Metrics
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(string) (*models.Metrics, error)); ok {
-		return returnFunc(metricID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (*models.Metrics, error)); ok {
+		return returnFunc(context1, s)
 	}
-	if returnFunc, ok := ret.Get(0).(func(string) *models.Metrics); ok {
-		r0 = returnFunc(metricID)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string) *models.Metrics); ok {
+		r0 = returnFunc(context1, s)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*models.Metrics)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func(string) error); ok {
-		r1 = returnFunc(metricID)
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = returnFunc(context1, s)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -172,19 +186,25 @@ type MockMetricsRepository_Get_Call struct {
 }
 
 // Get is a helper method to define mock.On call
-//   - metricID string
-func (_e *MockMetricsRepository_Expecter) Get(metricID interface{}) *MockMetricsRepository_Get_Call {
-	return &MockMetricsRepository_Get_Call{Call: _e.mock.On("Get", metricID)}
+//   - context1 context.Context
+//   - s string
+func (_e *MockMetricsRepository_Expecter) Get(context1 interface{}, s interface{}) *MockMetricsRepository_Get_Call {
+	return &MockMetricsRepository_Get_Call{Call: _e.mock.On("Get", context1, s)}
 }
 
-func (_c *MockMetricsRepository_Get_Call) Run(run func(metricID string)) *MockMetricsRepository_Get_Call {
+func (_c *MockMetricsRepository_Get_Call) Run(run func(context1 context.Context, s string)) *MockMetricsRepository_Get_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 string
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(string)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -195,14 +215,14 @@ func (_c *MockMetricsRepository_Get_Call) Return(metrics *models.Metrics, err er
 	return _c
 }
 
-func (_c *MockMetricsRepository_Get_Call) RunAndReturn(run func(metricID string) (*models.Metrics, error)) *MockMetricsRepository_Get_Call {
+func (_c *MockMetricsRepository_Get_Call) RunAndReturn(run func(context1 context.Context, s string) (*models.Metrics, error)) *MockMetricsRepository_Get_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetAll provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) GetAll() (*map[string]any, error) {
-	ret := _mock.Called()
+func (_mock *MockMetricsRepository) GetAll(context1 context.Context) (*map[string]any, error) {
+	ret := _mock.Called(context1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetAll")
@@ -210,18 +230,18 @@ func (_mock *MockMetricsRepository) GetAll() (*map[string]any, error) {
 
 	var r0 *map[string]any
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() (*map[string]any, error)); ok {
-		return returnFunc()
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (*map[string]any, error)); ok {
+		return returnFunc(context1)
 	}
-	if returnFunc, ok := ret.Get(0).(func() *map[string]any); ok {
-		r0 = returnFunc()
+	if returnFunc, ok := ret.Get(0).(func(context.Context) *map[string]any); ok {
+		r0 = returnFunc(context1)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*map[string]any)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func() error); ok {
-		r1 = returnFunc()
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(context1)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -234,13 +254,20 @@ type MockMetricsRepository_GetAll_Call struct {
 }
 
 // GetAll is a helper method to define mock.On call
-func (_e *MockMetricsRepository_Expecter) GetAll() *MockMetricsRepository_GetAll_Call {
-	return &MockMetricsRepository_GetAll_Call{Call: _e.mock.On("GetAll")}
+//   - context1 context.Context
+func (_e *MockMetricsRepository_Expecter) GetAll(context1 interface{}) *MockMetricsRepository_GetAll_Call {
+	return &MockMetricsRepository_GetAll_Call{Call: _e.mock.On("GetAll", context1)}
 }
 
-func (_c *MockMetricsRepository_GetAll_Call) Run(run func()) *MockMetricsRepository_GetAll_Call {
+func (_c *MockMetricsRepository_GetAll_Call) Run(run func(context1 context.Context)) *MockMetricsRepository_GetAll_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run()
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -250,14 +277,14 @@ func (_c *MockMetricsRepository_GetAll_Call) Return(stringToV *map[string]any, e
 	return _c
 }
 
-func (_c *MockMetricsRepository_GetAll_Call) RunAndReturn(run func() (*map[string]any, error)) *MockMetricsRepository_GetAll_Call {
+func (_c *MockMetricsRepository_GetAll_Call) RunAndReturn(run func(context1 context.Context) (*map[string]any, error)) *MockMetricsRepository_GetAll_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetAllMetrics provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) GetAllMetrics() (*[]models.Metrics, error) {
-	ret := _mock.Called()
+func (_mock *MockMetricsRepository) GetAllMetrics(context1 context.Context) (*[]models.Metrics, error) {
+	ret := _mock.Called(context1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetAllMetrics")
@@ -265,18 +292,18 @@ func (_mock *MockMetricsRepository) GetAllMetrics() (*[]models.Metrics, error) {
 
 	var r0 *[]models.Metrics
 	var r1 error
-	if returnFunc, ok := ret.Get(0).(func() (*[]models.Metrics, error)); ok {
-		return returnFunc()
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (*[]models.Metrics, error)); ok {
+		return returnFunc(context1)
 	}
-	if returnFunc, ok := ret.Get(0).(func() *[]models.Metrics); ok {
-		r0 = returnFunc()
+	if returnFunc, ok := ret.Get(0).(func(context.Context) *[]models.Metrics); ok {
+		r0 = returnFunc(context1)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*[]models.Metrics)
 		}
 	}
-	if returnFunc, ok := ret.Get(1).(func() error); ok {
-		r1 = returnFunc()
+	if returnFunc, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = returnFunc(context1)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -289,13 +316,20 @@ type MockMetricsRepository_GetAllMetrics_Call struct {
 }
 
 // GetAllMetrics is a helper method to define mock.On call
-func (_e *MockMetricsRepository_Expecter) GetAllMetrics() *MockMetricsRepository_GetAllMetrics_Call {
-	return &MockMetricsRepository_GetAllMetrics_Call{Call: _e.mock.On("GetAllMetrics")}
+//   - context1 context.Context
+func (_e *MockMetricsRepository_Expecter) GetAllMetrics(context1 interface{}) *MockMetricsRepository_GetAllMetrics_Call {
+	return &MockMetricsRepository_GetAllMetrics_Call{Call: _e.mock.On("GetAllMetrics", context1)}
 }
 
-func (_c *MockMetricsRepository_GetAllMetrics_Call) Run(run func()) *MockMetricsRepository_GetAllMetrics_Call {
+func (_c *MockMetricsRepository_GetAllMetrics_Call) Run(run func(context1 context.Context)) *MockMetricsRepository_GetAllMetrics_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run()
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		run(
+			arg0,
+		)
 	})
 	return _c
 }
@@ -305,22 +339,22 @@ func (_c *MockMetricsRepository_GetAllMetrics_Call) Return(metricss *[]models.Me
 	return _c
 }
 
-func (_c *MockMetricsRepository_GetAllMetrics_Call) RunAndReturn(run func() (*[]models.Metrics, error)) *MockMetricsRepository_GetAllMetrics_Call {
+func (_c *MockMetricsRepository_GetAllMetrics_Call) RunAndReturn(run func(context1 context.Context) (*[]models.Metrics, error)) *MockMetricsRepository_GetAllMetrics_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // Reset provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) Reset(metric models.Metrics) error {
-	ret := _mock.Called(metric)
+func (_mock *MockMetricsRepository) Reset(context1 context.Context, metrics models.Metrics) error {
+	ret := _mock.Called(context1, metrics)
 
 	if len(ret) == 0 {
 		panic("no return value specified for Reset")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(models.Metrics) error); ok {
-		r0 = returnFunc(metric)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, models.Metrics) error); ok {
+		r0 = returnFunc(context1, metrics)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -333,19 +367,25 @@ type MockMetricsRepository_Reset_Call struct {
 }
 
 // Reset is a helper method to define mock.On call
-//   - metric models.Metrics
-func (_e *MockMetricsRepository_Expecter) Reset(metric interface{}) *MockMetricsRepository_Reset_Call {
-	return &MockMetricsRepository_Reset_Call{Call: _e.mock.On("Reset", metric)}
+//   - context1 context.Context
+//   - metrics models.Metrics
+func (_e *MockMetricsRepository_Expecter) Reset(context1 interface{}, metrics interface{}) *MockMetricsRepository_Reset_Call {
+	return &MockMetricsRepository_Reset_Call{Call: _e.mock.On("Reset", context1, metrics)}
 }
 
-func (_c *MockMetricsRepository_Reset_Call) Run(run func(metric models.Metrics)) *MockMetricsRepository_Reset_Call {
+func (_c *MockMetricsRepository_Reset_Call) Run(run func(context1 context.Context, metrics models.Metrics)) *MockMetricsRepository_Reset_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 models.Metrics
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(models.Metrics)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 models.Metrics
+		if args[1] != nil {
+			arg1 = args[1].(models.Metrics)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -356,22 +396,22 @@ func (_c *MockMetricsRepository_Reset_Call) Return(err error) *MockMetricsReposi
 	return _c
 }
 
-func (_c *MockMetricsRepository_Reset_Call) RunAndReturn(run func(metric models.Metrics) error) *MockMetricsRepository_Reset_Call {
+func (_c *MockMetricsRepository_Reset_Call) RunAndReturn(run func(context1 context.Context, metrics models.Metrics) error) *MockMetricsRepository_Reset_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // ResetAll provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) ResetAll(metrics *[]models.Metrics) error {
-	ret := _mock.Called(metrics)
+func (_mock *MockMetricsRepository) ResetAll(context1 context.Context, metricss *[]models.Metrics) error {
+	ret := _mock.Called(context1, metricss)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ResetAll")
 	}
 
 	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(*[]models.Metrics) error); ok {
-		r0 = returnFunc(metrics)
+	if returnFunc, ok := ret.Get(0).(func(context.Context, *[]models.Metrics) error); ok {
+		r0 = returnFunc(context1, metricss)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -384,19 +424,25 @@ type MockMetricsRepository_ResetAll_Call struct {
 }
 
 // ResetAll is a helper method to define mock.On call
-//   - metrics *[]models.Metrics
-func (_e *MockMetricsRepository_Expecter) ResetAll(metrics interface{}) *MockMetricsRepository_ResetAll_Call {
-	return &MockMetricsRepository_ResetAll_Call{Call: _e.mock.On("ResetAll", metrics)}
+//   - context1 context.Context
+//   - metricss *[]models.Metrics
+func (_e *MockMetricsRepository_Expecter) ResetAll(context1 interface{}, metricss interface{}) *MockMetricsRepository_ResetAll_Call {
+	return &MockMetricsRepository_ResetAll_Call{Call: _e.mock.On("ResetAll", context1, metricss)}
 }
 
-func (_c *MockMetricsRepository_ResetAll_Call) Run(run func(metrics *[]models.Metrics)) *MockMetricsRepository_ResetAll_Call {
+func (_c *MockMetricsRepository_ResetAll_Call) Run(run func(context1 context.Context, metricss *[]models.Metrics)) *MockMetricsRepository_ResetAll_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *[]models.Metrics
+		var arg0 context.Context
 		if args[0] != nil {
-			arg0 = args[0].(*[]models.Metrics)
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 *[]models.Metrics
+		if args[1] != nil {
+			arg1 = args[1].(*[]models.Metrics)
 		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
@@ -407,7 +453,7 @@ func (_c *MockMetricsRepository_ResetAll_Call) Return(err error) *MockMetricsRep
 	return _c
 }
 
-func (_c *MockMetricsRepository_ResetAll_Call) RunAndReturn(run func(metrics *[]models.Metrics) error) *MockMetricsRepository_ResetAll_Call {
+func (_c *MockMetricsRepository_ResetAll_Call) RunAndReturn(run func(context1 context.Context, metricss *[]models.Metrics) error) *MockMetricsRepository_ResetAll_Call {
 	_c.Call.Return(run)
 	return _c
 }

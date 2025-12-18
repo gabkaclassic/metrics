@@ -103,7 +103,7 @@ func TestDBMetricsRepository_GetAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			result, err := repo.GetAll()
+			result, err := repo.GetAll(t.Context())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -194,7 +194,7 @@ func TestDBMetricsRepository_Get(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			result, err := repo.Get(tt.metricID)
+			result, err := repo.Get(t.Context(), tt.metricID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -297,7 +297,7 @@ func TestDBMetricsRepository_Add(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.Add(tt.metric)
+			err := repo.Add(t.Context(), tt.metric)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -395,7 +395,7 @@ func TestDBMetricsRepository_Reset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.Reset(tt.metric)
+			err := repo.Reset(t.Context(), tt.metric)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -534,7 +534,7 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.AddAll(tt.metrics)
+			err := repo.AddAll(t.Context(), tt.metrics)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -672,7 +672,7 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.ResetAll(tt.metrics)
+			err := repo.ResetAll(t.Context(), tt.metrics)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -786,7 +786,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			result, err := repo.GetAllMetrics()
+			result, err := repo.GetAllMetrics(t.Context())
 
 			if tt.expectError {
 				assert.Error(t, err)

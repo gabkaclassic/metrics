@@ -27,3 +27,7 @@ packages:
   github.com/gabkaclassic/metrics/internal/service:
     config:
       all: true
+
+  github.com/gabkaclassic/metrics/internal/audit:
+    config:
+      all: true

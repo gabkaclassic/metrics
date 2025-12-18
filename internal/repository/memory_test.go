@@ -73,7 +73,7 @@ func TestMetricsRepository_Get(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := repo.Get(tt.metricID)
+			result, err := repo.Get(t.Context(), tt.metricID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -117,12 +117,12 @@ func TestMetricsRepository_updateMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.updateMetric(tt.metric, tt.updateFunc)
+			err := repo.updateMetric(t.Context(), tt.metric, tt.updateFunc)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				stored, _ := repo.Get(tt.metric.ID)
+				stored, _ := repo.Get(t.Context(), tt.metric.ID)
 				assert.Equal(t, tt.metric, *stored)
 			}
 		})
@@ -197,7 +197,7 @@ func TestMemoryMetricsRepository_updateMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo.storage.Metrics = tt.initialStorage
 
-			err := repo.updateMetrics(tt.metrics, tt.updateFn)
+			err := repo.updateMetrics(t.Context(), tt.metrics, tt.updateFn)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -241,14 +241,14 @@ func TestMetricsRepository_Add(t *testing.T) {
 			assert.NoError(t, err)
 
 			for _, m := range tt.initialMetrics {
-				err := repo.Add(m)
+				err := repo.Add(t.Context(), m)
 				assert.NoError(t, err)
 			}
 
-			err = repo.Add(tt.addMetric)
+			err = repo.Add(t.Context(), tt.addMetric)
 			assert.NoError(t, err)
 
-			result, err := repo.Get(tt.addMetric.ID)
+			result, err := repo.Get(t.Context(), tt.addMetric.ID)
 			assert.NoError(t, err)
 			assert.NotNil(t, result)
 			assert.Equal(t, *tt.expectedMetric.Delta, *result.Delta)
@@ -343,7 +343,7 @@ func TestMemoryMetricsRepository_AddAll(t *testing.T) {
 				mutex: &sync.RWMutex{},
 			}
 
-			err := repo.AddAll(tt.metrics)
+			err := repo.AddAll(t.Context(), tt.metrics)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -396,10 +396,10 @@ func TestMetricsRepository_Reset(t *testing.T) {
 				storage.Metrics[k] = v
 			}
 
-			err := repo.Reset(tt.resetMetric)
+			err := repo.Reset(t.Context(), tt.resetMetric)
 			assert.NoError(t, err)
 
-			result, _ := repo.Get(tt.resetMetric.ID)
+			result, _ := repo.Get(t.Context(), tt.resetMetric.ID)
 			assert.NotNil(t, result)
 			assert.Equal(t, *tt.expectedMetric.Value, *result.Value)
 		})
@@ -493,7 +493,7 @@ func TestMemoryMetricsRepository_ResetAll(t *testing.T) {
 				mutex: &sync.RWMutex{},
 			}
 
-			err := repo.ResetAll(tt.metrics)
+			err := repo.ResetAll(t.Context(), tt.metrics)
 
 			if tt.expectedError {
 				assert.Error(t, err)
@@ -577,7 +577,7 @@ func TestMetricsRepository_GetAll(t *testing.T) {
 			st.Metrics = tt.initialMetrics
 			repo := &memoryMetricsRepository{storage: st}
 
-			result, _ := repo.GetAll()
+			result, _ := repo.GetAll(t.Context())
 
 			assert.NotNil(t, result)
 			assert.Equal(t, tt.expected, *result)
@@ -644,7 +644,7 @@ func TestMemoryMetricsRepository_GetAllMetrics(t *testing.T) {
 				mutex: &sync.RWMutex{},
 			}
 
-			result, err := repo.GetAllMetrics()
+			result, err := repo.GetAllMetrics(t.Context())
 
 			if tt.expectedError {
 				assert.Error(t, err)
