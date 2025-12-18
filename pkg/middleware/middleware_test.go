@@ -2,7 +2,11 @@ package middleware
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
+	"errors"
+	"github.com/gabkaclassic/metrics/pkg/compress"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -483,6 +487,176 @@ func TestAuditTsFromCtx(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result := AuditTsFromCtx(tt.ctx)
 			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestCompressMiddleware(t *testing.T) {
+	tests := []struct {
+		name             string
+		contentType      string
+		acceptEncoding   string
+		compressMapping  map[ContentType]CompressType
+		expectCompressed bool
+		expectNextCall   bool
+	}{
+		{
+			name:           "no compression when accept-encoding does not match",
+			contentType:    "application/json",
+			acceptEncoding: "br",
+			compressMapping: map[ContentType]CompressType{
+				"application/json": "gzip",
+			},
+			expectCompressed: false,
+			expectNextCall:   true,
+		},
+		{
+			name:           "no compression when content-type not in mapping",
+			contentType:    "text/plain",
+			acceptEncoding: "gzip",
+			compressMapping: map[ContentType]CompressType{
+				"application/json": "gzip",
+			},
+			expectCompressed: false,
+			expectNextCall:   true,
+		},
+		{
+			name:           "no compression when compressor does not exist",
+			contentType:    "application/json",
+			acceptEncoding: "gzip",
+			compressMapping: map[ContentType]CompressType{
+				"application/json": "gzip",
+			},
+			expectCompressed: false,
+			expectNextCall:   true,
+		},
+	}
+
+	originalCompressors := compressors
+	defer func() { compressors = originalCompressors }()
+
+	compressors = map[CompressType]func(http.ResponseWriter) (*compress.CompressWriter, error){
+		GZIP: compress.NewGzipWriter,
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				w.Header().Set("Content-Type", tt.contentType)
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("response-body"))
+			})
+
+			mw := Compress(tt.compressMapping)(next)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Accept-Encoding", tt.acceptEncoding)
+
+			rr := httptest.NewRecorder()
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectNextCall, nextCalled)
+
+			encoding := rr.Header().Get("Content-Encoding")
+			if tt.expectCompressed {
+				assert.Equal(t, "gzip", encoding)
+			} else {
+				assert.Empty(t, encoding)
+			}
+		})
+	}
+}
+
+func TestDecompressMiddleware(t *testing.T) {
+	tests := []struct {
+		name            string
+		contentEncoding string
+		body            []byte
+		decompressors   map[CompressType]func(io.ReadCloser) (io.ReadCloser, error)
+		expectBody      string
+		expectStatus    int
+		expectNextCall  bool
+	}{
+		{
+			name:            "gzip decompression applied",
+			contentEncoding: "gzip",
+			body: func() []byte {
+				var buf bytes.Buffer
+				w := gzip.NewWriter(&buf)
+				w.Write([]byte("payload"))
+				w.Close()
+				return buf.Bytes()
+			}(),
+			decompressors: map[CompressType]func(io.ReadCloser) (io.ReadCloser, error){
+				"gzip": func(r io.ReadCloser) (io.ReadCloser, error) {
+					gr, err := gzip.NewReader(r)
+					if err != nil {
+						return nil, err
+					}
+					return gr, nil
+				},
+			},
+			expectBody:     "payload",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:            "unknown encoding passes through",
+			contentEncoding: "br",
+			body:            []byte("raw"),
+			decompressors:   map[CompressType]func(io.ReadCloser) (io.ReadCloser, error){},
+			expectBody:      "raw",
+			expectStatus:    http.StatusOK,
+			expectNextCall:  true,
+		},
+		{
+			name:            "decompressor ctor error returns 500",
+			contentEncoding: "gzip",
+			body:            []byte("broken"),
+			decompressors: map[CompressType]func(io.ReadCloser) (io.ReadCloser, error){
+				"gzip": func(r io.ReadCloser) (io.ReadCloser, error) {
+					return nil, errors.New("boom")
+				},
+			},
+			expectStatus:   http.StatusInternalServerError,
+			expectNextCall: false,
+		},
+	}
+
+	originalDecompressors := decompressors
+	defer func() { decompressors = originalDecompressors }()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			nextCalled := false
+			var receivedBody []byte
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				receivedBody, _ = io.ReadAll(r.Body)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mw := Decompress()(next)
+
+			req := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(bytes.NewReader(tt.body)))
+			if tt.contentEncoding != "" {
+				req.Header.Set("Content-Encoding", tt.contentEncoding)
+			}
+
+			rr := httptest.NewRecorder()
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			assert.Equal(t, tt.expectNextCall, nextCalled)
+
+			if tt.expectNextCall && tt.expectBody != "" {
+				assert.Equal(t, tt.expectBody, string(receivedBody))
+			}
 		})
 	}
 }
