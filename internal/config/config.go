@@ -18,6 +18,7 @@ type (
 		Log     Log
 		Dump    Dump
 		DB      DB
+		Audit   Audit
 	}
 	DB struct {
 		Driver         string `env:"DB_DRIVER" envDefault:"postgres"`
@@ -49,6 +50,10 @@ type (
 		StoreInterval   time.Duration `env:"STORE_INTERVAL" envDefault:"300"`
 		FileStoragePath string        `env:"FILE_STORAGE_PATH" envDefault:"/tmp/metrics_dumps/dump.json"`
 		Restore         bool          `env:"RESTORE" envDefault:"false"`
+	}
+	Audit struct {
+		File string `env:"AUDIT_FILE"`
+		URL  string `env:"AUDIT_URL"`
 	}
 )
 
@@ -99,6 +104,9 @@ func ParseServerConfig() (*Server, error) {
 	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
 	dbMigrationsPath := flag.String("db-migrations-path", cfg.DB.MigrationsPath, "Migrations file path")
 
+	auditFile := flag.String("audit-file", cfg.Audit.File, "Audit dump filepath")
+	auditURL := flag.String("audit-url", cfg.Audit.URL, "Audit url")
+
 	signKey := flag.String("k", cfg.SignKey, "Key to verify requests bodies")
 
 	flag.Parse()
@@ -130,6 +138,11 @@ func ParseServerConfig() (*Server, error) {
 			cfg.DB.DSN = *dbDSN
 		case "db-migrations-path":
 			cfg.DB.MigrationsPath = *dbMigrationsPath
+
+		case "audit-file":
+			cfg.Audit.File = *auditFile
+		case "audit-url":
+			cfg.Audit.URL = *auditURL
 
 		case "k":
 			cfg.SignKey = *signKey

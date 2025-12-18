@@ -11,6 +11,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/gabkaclassic/metrics/internal/audit"
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/internal/dump"
 	"github.com/gabkaclassic/metrics/internal/handler"
@@ -73,7 +74,13 @@ func run() error {
 		readDump(cfg.Dump, dumper)
 	}
 
-	router, err := setupRouter(&metricsRepository, cfg.SignKey)
+	auditor, err := audit.NewAudior(cfg.Audit)
+
+	if err != nil {
+		return fmt.Errorf("failed to create auditor: %w", err)
+	}
+
+	router, err := setupRouter(&metricsRepository, cfg.SignKey, auditor)
 	if err != nil {
 		return fmt.Errorf("failed to setup HTTP router: %w", err)
 	}
@@ -105,10 +112,10 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(metricsRepository *repository.MetricsRepository, signKey string) (http.Handler, error) {
+func setupRouter(metricsRepository *repository.MetricsRepository, signKey string, auditor audit.Auditor) (http.Handler, error) {
 
 	// Metrics
-	metricsService, err := service.NewMetricsService(*metricsRepository)
+	metricsService, err := service.NewMetricsService(*metricsRepository, auditor)
 
 	if err != nil {
 		return nil, err
