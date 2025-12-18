@@ -46,9 +46,9 @@ func NewDumper(filePath string, repository repository.MetricsRepository) (*Dumpe
 	}, nil
 }
 
-func (d *Dumper) Dump() error {
+func (d *Dumper) Dump(ctx context.Context) error {
 
-	data, err := d.repository.GetAllMetrics()
+	data, err := d.repository.GetAllMetrics(ctx)
 
 	if err != nil {
 		slog.Error("Get data error", slog.String("error", err.Error()))
@@ -116,15 +116,15 @@ func (d *Dumper) Read() error {
 	}
 
 	errChan := make(chan error, 2)
-
+	ctx := context.Background()
 	if len(counters) > 0 {
-		go func() { errChan <- d.repository.AddAll(&counters) }()
+		go func() { errChan <- d.repository.AddAll(ctx, &counters) }()
 	} else {
 		go func() { errChan <- nil }()
 	}
 
 	if len(gauges) > 0 {
-		go func() { errChan <- d.repository.ResetAll(&gauges) }()
+		go func() { errChan <- d.repository.ResetAll(ctx, &gauges) }()
 	} else {
 		go func() { errChan <- nil }()
 	}
@@ -147,7 +147,7 @@ func (d *Dumper) StartDumper(ctx context.Context, cfg config.Dump) {
 	for {
 		select {
 		case <-ticker.C:
-			if err := d.Dump(); err != nil {
+			if err := d.Dump(ctx); err != nil {
 				slog.Error("Dump error", slog.String("error", err.Error()))
 			} else {
 				slog.Info("Dump completed")
