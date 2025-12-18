@@ -2,10 +2,12 @@ package middleware
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -340,6 +342,147 @@ func TestSignVerify(t *testing.T) {
 
 			assert.Equal(t, tt.expectStatus, rr.Code)
 			assert.Equal(t, tt.expectNextCall, nextCalled)
+		})
+	}
+}
+
+func TestAuditContext(t *testing.T) {
+	tests := []struct {
+		name       string
+		remoteAddr string
+		xff        string
+		expectIP   string
+	}{
+		{
+			name:       "uses RemoteAddr when no X-Forwarded-For",
+			remoteAddr: "10.0.0.1:12345",
+			expectIP:   "10.0.0.1:12345",
+		},
+		{
+			name:       "uses first X-Forwarded-For value",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "192.168.1.1, 192.168.1.2",
+			expectIP:   "192.168.1.1",
+		},
+		{
+			name:       "trims spaces in X-Forwarded-For",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "  172.16.0.1  ",
+			expectIP:   "172.16.0.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotIP string
+			var gotTS int64
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotIP, _ = r.Context().Value(ctxIPKey).(string)
+				gotTS, _ = r.Context().Value(ctxTSKey).(int64)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mw := AuditContext(next)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.RemoteAddr = tt.remoteAddr
+			if tt.xff != "" {
+				req.Header.Set("X-Forwarded-For", tt.xff)
+			}
+
+			rr := httptest.NewRecorder()
+			before := time.Now().Unix()
+
+			mw.ServeHTTP(rr, req)
+
+			after := time.Now().Unix()
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, tt.expectIP, gotIP)
+			assert.True(t, gotTS >= before && gotTS <= after)
+		})
+	}
+}
+
+func TestAuditIPFromCtx(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		expected string
+	}{
+		{
+			name:     "ctx with valid IP string",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, "192.168.1.1"),
+			expected: "192.168.1.1",
+		},
+		{
+			name:     "ctx with wrong value type",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, 123),
+			expected: "",
+		},
+		{
+			name:     "ctx without IP key",
+			ctx:      context.Background(),
+			expected: "",
+		},
+		{
+			name:     "ctx with nil value",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, nil),
+			expected: "",
+		},
+		{
+			name:     "ctx with empty string",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, ""),
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AuditIPFromCtx(tt.ctx)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAuditTsFromCtx(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		expected int64
+	}{
+		{
+			name:     "ctx with valid timestamp",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, int64(1672531200)),
+			expected: 1672531200,
+		},
+		{
+			name:     "ctx with wrong value type",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, "not-a-timestamp"),
+			expected: 0,
+		},
+		{
+			name:     "ctx without TS key",
+			ctx:      context.Background(),
+			expected: 0,
+		},
+		{
+			name:     "ctx with nil value",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, nil),
+			expected: 0,
+		},
+		{
+			name:     "ctx with zero value",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, int64(0)),
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AuditTsFromCtx(tt.ctx)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
