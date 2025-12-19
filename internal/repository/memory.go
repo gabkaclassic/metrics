@@ -1,3 +1,10 @@
+// Package repository provides data access layer implementations for metrics storage.
+//
+// The repository pattern abstracts storage details and provides:
+//   - Business logic for metric operations
+//   - Thread-safe concurrent access
+//   - Consistent error handling
+//   - Support for different storage backends
 package repository
 
 import (
@@ -11,23 +18,59 @@ import (
 	"github.com/gabkaclassic/metrics/pkg/metric"
 )
 
+// MetricsRepository defines the interface for metric data operations.
+// Implementations provide persistence-agnostic access to metrics.
 type MetricsRepository interface {
+	// Add increments a counter metric or adds a new metric.
+	// For counter metrics, adds delta to existing value.
+	// For gauge metrics, adds new metric if not exists.
 	Add(context.Context, models.Metrics) error
+
+	// AddAll performs batch addition of metrics.
+	// More efficient than multiple Add calls for bulk operations.
 	AddAll(context.Context, []models.Metrics) error
+
+	// ResetAll performs batch reset of gauge metrics.
+	// Updates existing gauge values or adds new ones.
 	ResetAll(context.Context, []models.Metrics) error
+
+	// Reset sets a gauge metric to a specific value.
+	// Creates the metric if it doesn't exist.
 	Reset(context.Context, models.Metrics) error
+
+	// Get retrieves a single metric by its ID.
+	// Returns error if metric not found.
 	Get(context.Context, string) (*models.Metrics, error)
+
+	// GetAll returns all metrics as a map of ID to value.
+	// Counter metrics return int64, gauge metrics return float64.
 	GetAll(context.Context) (map[string]any, error)
+
+	// GetAllMetrics returns all metrics as a slice of models.Metrics.
+	// Preserves complete metric structure including type and hash.
 	GetAllMetrics(context.Context) ([]models.Metrics, error)
 }
 
+// memoryMetricsRepository implements MetricsRepository using in-memory storage.
+// Provides thread-safe operations through read-write mutex.
+// Suitable for single-instance deployments and testing.
 type memoryMetricsRepository struct {
 	storage *storage.MemStorage
 	mutex   *sync.RWMutex
 }
 
+// NewMemoryMetricsRepository creates a new in-memory metrics repository.
+//
+// storage: MemStorage instance for data persistence
+// mutex: Read-write mutex for thread safety (can be shared)
+//
+// Returns:
+//   - MetricsRepository: Ready-to-use repository instance
+//   - error: If storage is nil
+//
+// Note: The repository uses the provided mutex for synchronization.
+// For independent synchronization, create new sync.RWMutex.
 func NewMemoryMetricsRepository(storage *storage.MemStorage, mutex *sync.RWMutex) (MetricsRepository, error) {
-
 	if storage == nil {
 		return nil, errors.New("create new metrics repository failed: storage is nil")
 	}
@@ -38,6 +81,8 @@ func NewMemoryMetricsRepository(storage *storage.MemStorage, mutex *sync.RWMutex
 	}, nil
 }
 
+// GetAllMetrics returns all stored metrics as a slice.
+// Order of metrics in the slice is not guaranteed.
 func (repository *memoryMetricsRepository) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	metrics := make([]models.Metrics, len(repository.storage.Metrics))
 	index := 0
@@ -49,8 +94,9 @@ func (repository *memoryMetricsRepository) GetAllMetrics(ctx context.Context) ([
 	return metrics, nil
 }
 
+// GetAll returns all metrics as a map of metric ID to value.
+// Counter metrics are returned as int64, gauge metrics as float64.
 func (repository *memoryMetricsRepository) GetAll(ctx context.Context) (map[string]any, error) {
-
 	metrics := make(map[string]any, len(repository.storage.Metrics))
 
 	for id, m := range repository.storage.Metrics {
@@ -65,8 +111,9 @@ func (repository *memoryMetricsRepository) GetAll(ctx context.Context) (map[stri
 	return metrics, nil
 }
 
+// Get retrieves a metric by its ID.
+// Returns error if metric with given ID doesn't exist.
 func (repository *memoryMetricsRepository) Get(ctx context.Context, metricID string) (*models.Metrics, error) {
-
 	metric, exists := repository.storage.Metrics[metricID]
 
 	if !exists {
@@ -76,7 +123,9 @@ func (repository *memoryMetricsRepository) Get(ctx context.Context, metricID str
 	return &metric, nil
 }
 
-func (repository *memoryMetricsRepository) updateMetric(ctx context.Context, metric models.Metrics, updateMetricFunction func(metric models.Metrics) error) error {
+// updateMetric executes a metric update operation with thread safety.
+// Acquires write lock and ensures storage map is initialized.
+func (repository *memoryMetricsRepository) updateMetric(_ context.Context, metric models.Metrics, updateMetricFunction func(metric models.Metrics) error) error {
 	repository.mutex.Lock()
 	defer repository.mutex.Unlock()
 
@@ -88,7 +137,10 @@ func (repository *memoryMetricsRepository) updateMetric(ctx context.Context, met
 
 	return err
 }
-func (repository *memoryMetricsRepository) updateMetrics(ctx context.Context, metrics []models.Metrics, updateMetricsFunction func(metric []models.Metrics) error) error {
+
+// updateMetrics executes a batch metrics update with thread safety.
+// Acquires write lock and ensures storage map is initialized.
+func (repository *memoryMetricsRepository) updateMetrics(_ context.Context, metrics []models.Metrics, updateMetricsFunction func(metric []models.Metrics) error) error {
 	repository.mutex.Lock()
 	defer repository.mutex.Unlock()
 
@@ -101,8 +153,10 @@ func (repository *memoryMetricsRepository) updateMetrics(ctx context.Context, me
 	return err
 }
 
+// Add increments a counter metric or adds a new metric.
+// For counters: adds delta to existing value (creates if not exists)
+// For gauges: adds new metric if not exists (no increment)
 func (repository *memoryMetricsRepository) Add(ctx context.Context, metric models.Metrics) error {
-
 	err := repository.updateMetric(
 		ctx,
 		metric,
@@ -119,8 +173,9 @@ func (repository *memoryMetricsRepository) Add(ctx context.Context, metric model
 	return err
 }
 
+// AddAll performs batch addition of metrics.
+// More efficient than individual Add calls for multiple metrics.
 func (repository *memoryMetricsRepository) AddAll(ctx context.Context, metrics []models.Metrics) error {
-
 	err := repository.updateMetrics(
 		ctx,
 		metrics,
@@ -139,8 +194,9 @@ func (repository *memoryMetricsRepository) AddAll(ctx context.Context, metrics [
 	return err
 }
 
+// Reset sets a gauge metric to a specific value.
+// Creates the metric if it doesn't exist.
 func (repository *memoryMetricsRepository) Reset(ctx context.Context, metric models.Metrics) error {
-
 	err := repository.updateMetric(
 		ctx,
 		metric,
@@ -157,8 +213,9 @@ func (repository *memoryMetricsRepository) Reset(ctx context.Context, metric mod
 	return err
 }
 
+// ResetAll performs batch reset of gauge metrics.
+// Updates existing values or adds new metrics.
 func (repository *memoryMetricsRepository) ResetAll(ctx context.Context, metrics []models.Metrics) error {
-
 	err := repository.updateMetrics(
 		ctx,
 		metrics,

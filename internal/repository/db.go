@@ -14,16 +14,30 @@ import (
 )
 
 const (
-	retriesAmount int           = 3
-	retryDelay    time.Duration = 1 * time.Second
+	// retriesAmount defines the maximum number of retry attempts for database operations.
+	retriesAmount int = 3
+
+	// retryDelay defines the initial delay between retry attempts.
+	// Uses exponential backoff: delay doubles after each retry.
+	retryDelay time.Duration = 1 * time.Second
 )
 
+// dbMetricsRepository implements MetricsRepository using PostgreSQL database.
+// Provides persistent storage with ACID compliance and transaction support.
 type dbMetricsRepository struct {
 	storage *sql.DB
 }
 
+// NewDBMetricsRepository creates a new PostgreSQL-based metrics repository.
+//
+// storage: Established SQL database connection (typically PostgreSQL)
+//
+// Returns:
+//   - MetricsRepository: Ready-to-use repository instance
+//   - error: If storage connection is nil
+//
+// The repository automatically retries operations on transient database errors.
 func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
-
 	if storage == nil {
 		return nil, errors.New("create new metrics repository failed: storage is nil")
 	}
@@ -33,6 +47,8 @@ func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
 	}, nil
 }
 
+// GetAllMetrics retrieves all metrics from the database.
+// Returns metrics in their complete structure including type and values.
 func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	metrics := make([]models.Metrics, 0)
 	err := repository.executeWithRetry(func() error {
@@ -62,6 +78,9 @@ func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) ([]mod
 	return metrics, nil
 }
 
+// GetAll returns all metrics as a map of metric ID to value.
+// Counter metrics are returned as int64, gauge metrics as float64.
+// Performs a single database query with automatic retry on failure.
 func (repository *dbMetricsRepository) GetAll(ctx context.Context) (map[string]any, error) {
 	var metrics map[string]any
 	err := repository.executeWithRetry(func() error {
@@ -99,6 +118,8 @@ func (repository *dbMetricsRepository) GetAll(ctx context.Context) (map[string]a
 	return metrics, nil
 }
 
+// Get retrieves a single metric by its ID from the database.
+// Returns sql.ErrNoRows wrapped in a descriptive error if metric not found.
 func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string) (*models.Metrics, error) {
 	var metric models.Metrics
 	err := repository.executeWithRetry(func() error {
@@ -126,6 +147,9 @@ func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string)
 	return &metric, nil
 }
 
+// Add increments a counter metric in the database.
+// Uses UPSERT pattern: inserts new counter or adds delta to existing one.
+// Executes within a transaction with automatic rollback on error.
 func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
 		tx, err := repository.storage.BeginTx(ctx, nil)
@@ -151,6 +175,9 @@ func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Me
 	})
 }
 
+// AddAll performs batch addition of counter metrics.
+// Uses PostgreSQL array operations for efficient bulk UPSERT.
+// More performant than multiple individual Add calls.
 func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
 		tx, err := repository.storage.BeginTx(ctx, nil)
@@ -184,6 +211,9 @@ func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []mod
 	})
 }
 
+// Reset sets a gauge metric to a specific value in the database.
+// Uses UPSERT pattern: inserts new gauge or updates existing value.
+// Executes within a transaction with automatic rollback on error.
 func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
 		tx, err := repository.storage.BeginTx(ctx, nil)
@@ -210,6 +240,9 @@ func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.
 	})
 }
 
+// ResetAll performs batch reset of gauge metrics.
+// Uses PostgreSQL array operations for efficient bulk UPSERT.
+// Updates existing values or inserts new metrics in a single operation.
 func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
 		tx, err := repository.storage.BeginTx(ctx, nil)
@@ -244,6 +277,8 @@ func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []m
 	})
 }
 
+// isRetryableError determines if a database error is transient and safe to retry.
+// Checks PostgreSQL error codes for connection issues, deadlocks, and serialization failures.
 func isRetryableError(err error) bool {
 	if pqErr, ok := err.(*pq.Error); ok {
 		switch pqErr.Code {
@@ -263,6 +298,9 @@ func isRetryableError(err error) bool {
 	return false
 }
 
+// executeWithRetry executes a database operation with automatic retry logic.
+// Implements exponential backoff for retryable errors.
+// Returns the last error if all retries fail.
 func (repository *dbMetricsRepository) executeWithRetry(operation func() error) error {
 	var lastErr error
 	currentRetryDelay := retryDelay
