@@ -7,41 +7,64 @@ import (
 	"time"
 )
 
-type ResponseFilter func(resp *http.Response, err error) bool
+type (
+	// ResponseFilter defines a function to determine if a request should be retried.
+	//
+	// Returns true if the request should be retried, false otherwise.
+	ResponseFilter func(resp *http.Response, err error) bool
 
-type RequestOptions struct {
-	Params  *Params
-	Headers *Headers
-	Body    io.Reader
-}
+	// RequestOptions holds optional parameters for an HTTP request.
+	RequestOptions struct {
+		Params  *Params   // URL query parameters
+		Headers *Headers  // Request headers
+		Body    io.Reader // Request body
+	}
 
-type ResponseDelay func() time.Duration
+	// ResponseDelay returns a duration to wait before the next retry attempt.
+	ResponseDelay func() time.Duration
 
-type DelayGenerator func(attempt int) ResponseDelay
+	// DelayGenerator returns a ResponseDelay for a given retry attempt.
+	DelayGenerator func(attempt int) ResponseDelay
 
-type Method string
+	// Method represents HTTP methods as strings.
+	Method string
 
-type Headers map[string]string
-type Params map[string]string
+	// Headers defines HTTP headers map.
+	Headers map[string]string
 
-type HTTPClient interface {
-	Get(url string, opts *RequestOptions) (*http.Response, error)
-	Post(url string, opts *RequestOptions) (*http.Response, error)
-	Put(url string, opts *RequestOptions) (*http.Response, error)
-	Patch(url string, opts *RequestOptions) (*http.Response, error)
-	Delete(url string, opts *RequestOptions) (*http.Response, error)
-}
+	// Params defines URL query parameters map.
+	Params map[string]string
 
-type Client struct {
-	baseURL        string
-	responseFilter ResponseFilter
-	maxRetries     int
-	delay          DelayGenerator
-	client         http.Client
-	timeout        time.Duration
-	headers        Headers
-}
+	// HTTPClient defines the interface for an HTTP client supporting
+	// standard HTTP methods.
+	HTTPClient interface {
+		Get(url string, opts *RequestOptions) (*http.Response, error)
+		Post(url string, opts *RequestOptions) (*http.Response, error)
+		Put(url string, opts *RequestOptions) (*http.Response, error)
+		Patch(url string, opts *RequestOptions) (*http.Response, error)
+		Delete(url string, opts *RequestOptions) (*http.Response, error)
+	}
 
+	// Client implements HTTPClient with retry logic, delays, headers,
+	// base URL and response filtering.
+	Client struct {
+		baseURL        string
+		responseFilter ResponseFilter
+		maxRetries     int
+		delay          DelayGenerator
+		client         http.Client
+		timeout        time.Duration
+		headers        Headers
+	}
+)
+
+// NewClient creates a new Client configured with functional options.
+//
+// Default behavior:
+//   - maxRetries = 3
+//   - JSON headers empty
+//   - Default responseFilter retries on errors or 5xx status codes
+//   - Delay between retries = attempt * 1s
 func NewClient(options ...Option) *Client {
 	c := &Client{
 		client:         http.Client{},
@@ -60,6 +83,7 @@ func NewClient(options ...Option) *Client {
 	return c
 }
 
+// buildURL constructs a full URL with query parameters.
 func buildURL(base string, params Params) string {
 	if len(params) == 0 {
 		return base
@@ -74,6 +98,9 @@ func buildURL(base string, params Params) string {
 	return u.String()
 }
 
+// do executes an HTTP request with retries, headers and optional body.
+//
+// Internal method used by Get, Post, Put, Patch, Delete.
 func (c *Client) do(url string, method string, opts *RequestOptions) (*http.Response, error) {
 	var params Params
 	var headers Headers
@@ -121,22 +148,27 @@ func (c *Client) do(url string, method string, opts *RequestOptions) (*http.Resp
 	return resp, err
 }
 
+// Get performs an HTTP GET request.
 func (c *Client) Get(url string, opts *RequestOptions) (*http.Response, error) {
 	return c.do(c.baseURL+url, http.MethodGet, opts)
 }
 
+// Post performs an HTTP POST request.
 func (c *Client) Post(url string, opts *RequestOptions) (*http.Response, error) {
 	return c.do(c.baseURL+url, http.MethodPost, opts)
 }
 
+// Put performs an HTTP PUT request.
 func (c *Client) Put(url string, opts *RequestOptions) (*http.Response, error) {
 	return c.do(c.baseURL+url, http.MethodPut, opts)
 }
 
+// Patch performs an HTTP PATCH request.
 func (c *Client) Patch(url string, opts *RequestOptions) (*http.Response, error) {
 	return c.do(c.baseURL+url, http.MethodPatch, opts)
 }
 
+// Delete performs an HTTP DELETE request.
 func (c *Client) Delete(url string, opts *RequestOptions) (*http.Response, error) {
 	return c.do(c.baseURL+url, http.MethodDelete, opts)
 }
