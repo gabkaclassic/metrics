@@ -5,6 +5,7 @@ import (
 
 	"github.com/gabkaclassic/metrics/pkg/middleware"
 	"github.com/go-chi/chi/v5"
+
 	chi_middleware "github.com/go-chi/chi/v5/middleware"
 )
 
