@@ -7,11 +7,40 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// RouterConfiguration holds the dependencies and settings required to setup the HTTP router.
+// Used to decouple router configuration from application initialization.
 type RouterConfiguration struct {
+	// MetricsHandler handles all metrics-related HTTP endpoints.
+	// Must be initialized before router setup.
 	MetricsHandler *MetricsHandler
-	SignKey        string
+
+	// SignKey is the secret key used for request signature verification.
+	// If empty, signature verification middleware is disabled.
+	SignKey string
 }
 
+// SetupRouter configures and returns a fully initialized HTTP router with all middleware.
+//
+// config: Router configuration containing handler and security settings.
+//
+// Returns:
+//   - http.Handler: Configured router with all middleware applied.
+//
+// The router includes:
+//   - Request logging
+//   - Audit context propagation
+//   - Compression/decompression
+//   - Content type validation
+//   - Request signature verification (if SignKey provided)
+//
+// Routes configured:
+//   - GET  /ping     - Health check endpoint
+//   - GET  /         - HTML metrics dashboard
+//   - POST /update/  - JSON metric update (single)
+//   - POST /updates/ - JSON metric batch update
+//   - POST /value/   - JSON metric retrieval
+//   - POST /update/{type}/{id}/{value} - Plain text metric update
+//   - GET  /value/{type}/{id} - Plain text metric retrieval
 func SetupRouter(config *RouterConfiguration) http.Handler {
 
 	router := chi.NewRouter()
@@ -29,6 +58,19 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 	return router
 }
 
+// setupMetricsRouter configures all metrics-related routes with appropriate middleware.
+// This function separates metrics route configuration for better organization.
+//
+// router: Chi router instance to register routes on.
+// handler: Metrics handler implementing endpoint logic.
+// decompressMiddleware: Middleware for decompressing request bodies (gzip).
+// signVerifyMiddleware: Middleware for verifying request signatures (HMAC).
+//
+// Middleware composition per route:
+//   - All routes: decompression, content type headers
+//   - Write operations: signature verification (if key provided)
+//   - JSON endpoints: content type validation, compression
+//   - HTML endpoint: HTML-specific compression
 func setupMetricsRouter(
 	router *chi.Mux,
 	handler *MetricsHandler,
