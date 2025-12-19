@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/gabkaclassic/metrics/internal/model"
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/storage"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 )

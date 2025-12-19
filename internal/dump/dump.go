@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/gabkaclassic/metrics/internal/config"
-	"github.com/gabkaclassic/metrics/internal/model"
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/repository"
 )
 

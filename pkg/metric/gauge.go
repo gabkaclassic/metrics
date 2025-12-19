@@ -1,9 +1,10 @@
 package metric
 
 import (
-	"github.com/shirou/gopsutil/v4/mem"
 	"math/rand"
 	"runtime"
+
+	"github.com/shirou/gopsutil/v4/mem"
 )
 
 type ValueFunctionType func() float64

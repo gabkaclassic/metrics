@@ -15,7 +15,7 @@ import (
 
 	"compress/gzip"
 
-	"github.com/gabkaclassic/metrics/internal/model"
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"

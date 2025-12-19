@@ -2,12 +2,13 @@ package repository
 
 import (
 	"errors"
-	"github.com/gabkaclassic/metrics/internal/model"
+	"sync"
+	"testing"
+
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/storage"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/stretchr/testify/assert"
-	"sync"
-	"testing"
 )
 
 func TestNewMemoryMetricsRepository(t *testing.T) {

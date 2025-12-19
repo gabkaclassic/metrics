@@ -5,10 +5,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/lib/pq"
 	"time"
 
-	"github.com/gabkaclassic/metrics/internal/model"
+	"github.com/lib/pq"
+
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 )
 

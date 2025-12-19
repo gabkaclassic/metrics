@@ -2,10 +2,6 @@ package audit
 
 import (
 	"encoding/json"
-	"github.com/gabkaclassic/metrics/internal/config"
-	"github.com/gabkaclassic/metrics/internal/model"
-	"github.com/gabkaclassic/metrics/pkg/httpclient"
-	"github.com/stretchr/testify/assert"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +10,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/gabkaclassic/metrics/internal/config"
+	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/pkg/httpclient"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewAudior(t *testing.T) {

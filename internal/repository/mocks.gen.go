@@ -7,7 +7,7 @@ package repository
 import (
 	"context"
 
-	"github.com/gabkaclassic/metrics/internal/model"
+	models "github.com/gabkaclassic/metrics/internal/model"
 	mock "github.com/stretchr/testify/mock"
 )
 

@@ -7,8 +7,8 @@ package service
 import (
 	"context"
 
-	"github.com/gabkaclassic/metrics/internal/model"
-	"github.com/gabkaclassic/metrics/pkg/error"
+	models "github.com/gabkaclassic/metrics/internal/model"
+	api "github.com/gabkaclassic/metrics/pkg/error"
 	mock "github.com/stretchr/testify/mock"
 )
 

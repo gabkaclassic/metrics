@@ -5,13 +5,14 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
-	"github.com/gabkaclassic/metrics/pkg/compress"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gabkaclassic/metrics/pkg/compress"
 
 	"github.com/stretchr/testify/assert"
 )

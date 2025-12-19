@@ -3,13 +3,14 @@ package repository
 import (
 	"database/sql"
 	"errors"
+	"regexp"
+	"testing"
+
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/gabkaclassic/metrics/internal/model"
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
-	"regexp"
-	"testing"
 )
 
 func TestNewDBMetricsRepository(t *testing.T) {
