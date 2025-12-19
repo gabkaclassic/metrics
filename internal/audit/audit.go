@@ -17,18 +17,18 @@ import (
 
 type (
 	handler interface {
-		handle(*event)
+		handle(event)
 	}
 	fileHandler struct {
 		file *os.File
-		mu   sync.Mutex
+		mu   *sync.Mutex
 	}
 	urlHandler struct {
 		client httpclient.HTTPClient
 	}
 
 	Auditor interface {
-		AuditOne(*models.Metrics, int64, string)
+		AuditOne(models.Metrics, int64, string)
 		AuditMany([]models.Metrics, int64, string)
 	}
 	auditor struct {
@@ -71,32 +71,33 @@ func NewAudior(cfg config.Audit) (Auditor, error) {
 	return a, nil
 }
 
-func newURLHandler(url string) (*urlHandler, error) {
+func newURLHandler(url string) (urlHandler, error) {
 
 	client := httpclient.NewClient(
 		httpclient.BaseURL(url),
 	)
 
-	return &urlHandler{
+	return urlHandler{
 		client: client,
 	}, nil
 }
 
-func newFileHandler(filePath string) (*fileHandler, error) {
+func newFileHandler(filePath string) (fileHandler, error) {
 	file, err := os.OpenFile(filePath, os.O_RDWR|os.O_CREATE, 0660)
 
 	if err != nil {
 		slog.Error("Open file error", slog.String("error", err.Error()))
-		return nil, err
+		return fileHandler{}, err
 	}
 
-	return &fileHandler{
+	return fileHandler{
 		file: file,
+		mu:   &sync.Mutex{},
 	}, nil
 }
 
-func (a *auditor) AuditOne(metric *models.Metrics, timestamp int64, ip string) {
-	metrics := []models.Metrics{*metric}
+func (a *auditor) AuditOne(metric models.Metrics, timestamp int64, ip string) {
+	metrics := []models.Metrics{metric}
 	a.AuditMany(metrics, timestamp, ip)
 }
 
@@ -106,7 +107,7 @@ func (a *auditor) AuditMany(metrics []models.Metrics, timestamp int64, ip string
 		return
 	}
 
-	e := &event{
+	e := event{
 		Ts:        timestamp,
 		Metrics:   getMetricsNames(metrics),
 		IPAddress: ip,
@@ -127,7 +128,7 @@ func (a *auditor) AuditMany(metrics []models.Metrics, timestamp int64, ip string
 	}()
 }
 
-func (h fileHandler) handle(e *event) {
+func (h fileHandler) handle(e event) {
 	marshalledData, err := json.Marshal(e)
 
 	if err != nil {
@@ -153,7 +154,7 @@ func (h fileHandler) handle(e *event) {
 	}
 }
 
-func (h urlHandler) handle(e *event) {
+func (h urlHandler) handle(e event) {
 	marshalledData, err := json.Marshal(e)
 
 	if err != nil {

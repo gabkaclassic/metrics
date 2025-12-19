@@ -13,12 +13,12 @@ import (
 
 type MetricsRepository interface {
 	Add(context.Context, models.Metrics) error
-	AddAll(context.Context, *[]models.Metrics) error
-	ResetAll(context.Context, *[]models.Metrics) error
+	AddAll(context.Context, []models.Metrics) error
+	ResetAll(context.Context, []models.Metrics) error
 	Reset(context.Context, models.Metrics) error
 	Get(context.Context, string) (*models.Metrics, error)
-	GetAll(context.Context) (*map[string]any, error)
-	GetAllMetrics(context.Context) (*[]models.Metrics, error)
+	GetAll(context.Context) (map[string]any, error)
+	GetAllMetrics(context.Context) ([]models.Metrics, error)
 }
 
 type memoryMetricsRepository struct {
@@ -38,7 +38,7 @@ func NewMemoryMetricsRepository(storage *storage.MemStorage, mutex *sync.RWMutex
 	}, nil
 }
 
-func (repository *memoryMetricsRepository) GetAllMetrics(ctx context.Context) (*[]models.Metrics, error) {
+func (repository *memoryMetricsRepository) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	metrics := make([]models.Metrics, len(repository.storage.Metrics))
 	index := 0
 	for _, m := range repository.storage.Metrics {
@@ -46,10 +46,10 @@ func (repository *memoryMetricsRepository) GetAllMetrics(ctx context.Context) (*
 		index += 1
 	}
 
-	return &metrics, nil
+	return metrics, nil
 }
 
-func (repository *memoryMetricsRepository) GetAll(ctx context.Context) (*map[string]any, error) {
+func (repository *memoryMetricsRepository) GetAll(ctx context.Context) (map[string]any, error) {
 
 	metrics := make(map[string]any, len(repository.storage.Metrics))
 
@@ -62,7 +62,7 @@ func (repository *memoryMetricsRepository) GetAll(ctx context.Context) (*map[str
 		}
 	}
 
-	return &metrics, nil
+	return metrics, nil
 }
 
 func (repository *memoryMetricsRepository) Get(ctx context.Context, metricID string) (*models.Metrics, error) {
@@ -88,7 +88,7 @@ func (repository *memoryMetricsRepository) updateMetric(ctx context.Context, met
 
 	return err
 }
-func (repository *memoryMetricsRepository) updateMetrics(ctx context.Context, metrics *[]models.Metrics, updateMetricsFunction func(metric *[]models.Metrics) error) error {
+func (repository *memoryMetricsRepository) updateMetrics(ctx context.Context, metrics []models.Metrics, updateMetricsFunction func(metric []models.Metrics) error) error {
 	repository.mutex.Lock()
 	defer repository.mutex.Unlock()
 
@@ -119,13 +119,13 @@ func (repository *memoryMetricsRepository) Add(ctx context.Context, metric model
 	return err
 }
 
-func (repository *memoryMetricsRepository) AddAll(ctx context.Context, metrics *[]models.Metrics) error {
+func (repository *memoryMetricsRepository) AddAll(ctx context.Context, metrics []models.Metrics) error {
 
 	err := repository.updateMetrics(
 		ctx,
 		metrics,
-		func(metrics *[]models.Metrics) error {
-			for _, metric := range *metrics {
+		func(metrics []models.Metrics) error {
+			for _, metric := range metrics {
 				if savedMetric, exists := repository.storage.Metrics[metric.ID]; exists {
 					*savedMetric.Delta = *(savedMetric.Delta) + *(metric.Delta)
 				} else {
@@ -157,13 +157,13 @@ func (repository *memoryMetricsRepository) Reset(ctx context.Context, metric mod
 	return err
 }
 
-func (repository *memoryMetricsRepository) ResetAll(ctx context.Context, metrics *[]models.Metrics) error {
+func (repository *memoryMetricsRepository) ResetAll(ctx context.Context, metrics []models.Metrics) error {
 
 	err := repository.updateMetrics(
 		ctx,
 		metrics,
-		func(metrics *[]models.Metrics) error {
-			for _, metric := range *metrics {
+		func(metrics []models.Metrics) error {
+			for _, metric := range metrics {
 				if savedMetric, exists := repository.storage.Metrics[metric.ID]; exists {
 					*savedMetric.Value = *(metric.Value)
 				} else {

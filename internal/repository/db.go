@@ -32,7 +32,7 @@ func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
 	}, nil
 }
 
-func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) (*[]models.Metrics, error) {
+func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	metrics := make([]models.Metrics, 0)
 	err := repository.executeWithRetry(func() error {
 		rows, err := repository.storage.QueryContext(ctx, "SELECT id, type, delta, value FROM metric;")
@@ -58,11 +58,11 @@ func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) (*[]mo
 	if err != nil {
 		return nil, err
 	}
-	return &metrics, nil
+	return metrics, nil
 }
 
-func (repository *dbMetricsRepository) GetAll(ctx context.Context) (*map[string]any, error) {
-	var metrics *map[string]any
+func (repository *dbMetricsRepository) GetAll(ctx context.Context) (map[string]any, error) {
+	var metrics map[string]any
 	err := repository.executeWithRetry(func() error {
 		rows, err := repository.storage.QueryContext(ctx, "SELECT id, type, delta, value FROM metric;")
 		if err != nil {
@@ -88,7 +88,7 @@ func (repository *dbMetricsRepository) GetAll(ctx context.Context) (*map[string]
 			return err
 		}
 
-		metrics = &currentMetrics
+		metrics = currentMetrics
 		return nil
 	})
 
@@ -99,7 +99,7 @@ func (repository *dbMetricsRepository) GetAll(ctx context.Context) (*map[string]
 }
 
 func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string) (*models.Metrics, error) {
-	var metric *models.Metrics
+	var metric models.Metrics
 	err := repository.executeWithRetry(func() error {
 		m := models.Metrics{}
 		err := repository.storage.QueryRowContext(
@@ -115,14 +115,14 @@ func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string)
 			}
 			return err
 		}
-		metric = &m
+		metric = m
 		return nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
-	return metric, nil
+	return &metric, nil
 }
 
 func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Metrics) error {
@@ -150,7 +150,7 @@ func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Me
 	})
 }
 
-func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics *[]models.Metrics) error {
+func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
 		tx, err := repository.storage.BeginTx(ctx, nil)
 		if err != nil {
@@ -158,10 +158,10 @@ func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics *[]mo
 		}
 		defer tx.Rollback()
 
-		ids := make([]string, len(*metrics))
-		deltas := make([]int64, len(*metrics))
+		ids := make([]string, len(metrics))
+		deltas := make([]int64, len(metrics))
 
-		for i, metric := range *metrics {
+		for i, metric := range metrics {
 			ids[i] = metric.ID
 			deltas[i] = *metric.Delta
 		}
@@ -209,7 +209,7 @@ func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.
 	})
 }
 
-func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics *[]models.Metrics) error {
+func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
 		tx, err := repository.storage.BeginTx(ctx, nil)
 		if err != nil {
@@ -218,10 +218,10 @@ func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics *[]
 
 		defer tx.Rollback()
 
-		ids := make([]string, len(*metrics))
-		values := make([]float64, len(*metrics))
+		ids := make([]string, len(metrics))
+		values := make([]float64, len(metrics))
 
-		for i, metric := range *metrics {
+		for i, metric := range metrics {
 			ids[i] = metric.ID
 			values[i] = *metric.Value
 		}

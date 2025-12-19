@@ -16,11 +16,11 @@ import (
 
 type MetricsService interface {
 	Get(context.Context, string, string) (any, *api.APIError)
-	GetStruct(context.Context, string, string) (*models.Metrics, *api.APIError)
+	GetStruct(context.Context, string, string) (models.Metrics, *api.APIError)
 	Save(context.Context, string, string, string) *api.APIError
 	SaveStruct(context.Context, models.Metrics) *api.APIError
-	SaveAll(context.Context, *[]models.Metrics) *api.APIError
-	GetAll(context.Context) (*map[string]any, *api.APIError)
+	SaveAll(context.Context, []models.Metrics) *api.APIError
+	GetAll(context.Context) (map[string]any, *api.APIError)
 }
 
 type metricsService struct {
@@ -44,12 +44,7 @@ func NewMetricsService(repository repository.MetricsRepository, auditor audit.Au
 	}, nil
 }
 
-func (service *metricsService) notifyOne(ctx context.Context, metric *models.Metrics) {
-
-	if metric == nil {
-		slog.Debug("Metric for audit is nil")
-		return
-	}
+func (service *metricsService) notifyOne(ctx context.Context, metric models.Metrics) {
 
 	ts := middleware.AuditTsFromCtx(ctx)
 
@@ -92,7 +87,7 @@ func (service *metricsService) notifyMany(ctx context.Context, metrics []models.
 	service.auditor.AuditMany(metrics, ts, ip)
 }
 
-func (service *metricsService) GetAll(ctx context.Context) (*map[string]any, *api.APIError) {
+func (service *metricsService) GetAll(ctx context.Context) (map[string]any, *api.APIError) {
 	metrics, err := service.repository.GetAll(ctx)
 
 	if err != nil {
@@ -124,19 +119,19 @@ func (service *metricsService) Get(ctx context.Context, metricID string, metricT
 	}
 }
 
-func (service *metricsService) GetStruct(ctx context.Context, metricID string, metricType string) (*models.Metrics, *api.APIError) {
+func (service *metricsService) GetStruct(ctx context.Context, metricID string, metricType string) (models.Metrics, *api.APIError) {
 
 	metric, err := service.repository.Get(ctx, metricID)
 
 	if metric == nil || metric.MType != metricType {
-		return nil, api.NotFound(fmt.Sprintf("metric %v %v not found", metricID, metricType))
+		return models.Metrics{}, api.NotFound(fmt.Sprintf("metric %v %v not found", metricID, metricType))
 	}
 
 	if err != nil {
-		return nil, api.Internal("Get metric error", err)
+		return models.Metrics{}, api.Internal("Get metric error", err)
 	}
 
-	return &models.Metrics{
+	return models.Metrics{
 		ID:    metricID,
 		MType: metricType,
 		Value: metric.Value,
@@ -158,7 +153,7 @@ func (service *metricsService) Save(ctx context.Context, id string, metricType s
 			if err != nil {
 				return api.Internal("Add delta error", err)
 			}
-			go service.notifyOne(ctx, &metric)
+			go service.notifyOne(ctx, metric)
 		} else {
 			return api.BadRequest(fmt.Sprintf("invalid metric value: %s", rawValue))
 		}
@@ -173,7 +168,7 @@ func (service *metricsService) Save(ctx context.Context, id string, metricType s
 			if err != nil {
 				return api.Internal("Reset value error", err)
 			}
-			go service.notifyOne(ctx, &metric)
+			go service.notifyOne(ctx, metric)
 		} else {
 			return api.BadRequest(fmt.Sprintf("invalid metric value: %s", rawValue))
 		}
@@ -199,16 +194,16 @@ func (service *metricsService) SaveStruct(ctx context.Context, metric models.Met
 	if err != nil {
 		return api.Internal("save metric error", err)
 	}
-	go service.notifyOne(ctx, &metric)
+	go service.notifyOne(ctx, metric)
 
 	return nil
 }
 
-func (service *metricsService) SaveAll(ctx context.Context, metrics *[]models.Metrics) *api.APIError {
+func (service *metricsService) SaveAll(ctx context.Context, metrics []models.Metrics) *api.APIError {
 	counterSums := make(map[string]int64)
 	gaugeLastValues := make(map[string]float64)
 
-	for _, metric := range *metrics {
+	for _, metric := range metrics {
 		switch metric.MType {
 		case models.Counter:
 			if metric.Delta != nil {
@@ -246,13 +241,13 @@ func (service *metricsService) SaveAll(ctx context.Context, metrics *[]models.Me
 	errChan := make(chan error, 2)
 
 	if len(counters) > 0 {
-		go func() { errChan <- service.repository.AddAll(ctx, &counters) }()
+		go func() { errChan <- service.repository.AddAll(ctx, counters) }()
 	} else {
 		go func() { errChan <- nil }()
 	}
 
 	if len(gauges) > 0 {
-		go func() { errChan <- service.repository.ResetAll(ctx, &gauges) }()
+		go func() { errChan <- service.repository.ResetAll(ctx, gauges) }()
 	} else {
 		go func() { errChan <- nil }()
 	}
@@ -264,7 +259,7 @@ func (service *metricsService) SaveAll(ctx context.Context, metrics *[]models.Me
 		return api.Internal("save metrics error", fmt.Errorf("counters: %v, gauges: %v", err1, err2))
 	}
 
-	go service.notifyMany(ctx, *metrics)
+	go service.notifyMany(ctx, metrics)
 
 	return nil
 }

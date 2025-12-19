@@ -95,7 +95,7 @@ func (handler *MetricsHandler) SaveAll(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	saveErr := handler.service.SaveAll(r.Context(), &metrics)
+	saveErr := handler.service.SaveAll(r.Context(), metrics)
 
 	if saveErr != nil {
 		api.RespondError(w, saveErr)
@@ -165,7 +165,7 @@ func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	}
 
 	data := MetricsPageData{
-		Metrics: *metrics,
+		Metrics: metrics,
 	}
 
 	if err := metricsTemplate.Execute(w, data); err != nil {

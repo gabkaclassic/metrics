@@ -118,13 +118,13 @@ func (d *Dumper) Read() error {
 	errChan := make(chan error, 2)
 	ctx := context.Background()
 	if len(counters) > 0 {
-		go func() { errChan <- d.repository.AddAll(ctx, &counters) }()
+		go func() { errChan <- d.repository.AddAll(ctx, counters) }()
 	} else {
 		go func() { errChan <- nil }()
 	}
 
 	if len(gauges) > 0 {
-		go func() { errChan <- d.repository.ResetAll(ctx, &gauges) }()
+		go func() { errChan <- d.repository.ResetAll(ctx, gauges) }()
 	} else {
 		go func() { errChan <- nil }()
 	}
