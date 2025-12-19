@@ -1,3 +1,15 @@
+// Package agent implements metrics collection and reporting agent.
+//
+// The agent periodically collects system metrics (runtime, CPU, memory, custom)
+// and reports them to a metrics server. It supports multiple reporting strategies:
+//   - Individual metric reporting (one HTTP request per metric)
+//   - Batch reporting (multiple metrics per HTTP request)
+//   - Rate-limited concurrent reporting
+//
+// Metrics collected include:
+//   - Go runtime statistics (memory allocation, GC, etc.)
+//   - System metrics (CPU utilization, memory usage)
+//   - Custom application metrics (poll count, random values)
 package agent
 
 import (
@@ -23,11 +35,20 @@ import (
 	"github.com/shirou/gopsutil/v4/mem"
 )
 
+// Agent defines the interface for metrics collection agents.
+// Implementations handle periodic polling and reporting of metrics.
 type Agent interface {
+	// Poll collects current metric values from all sources.
+	// Updates internal metric states with fresh values.
 	Poll()
+
+	// Report sends collected metrics to the server.
+	// Returns error if any part of the reporting process fails.
 	Report() error
 }
 
+// MetricsAgent implements the Agent interface with advanced features.
+// Provides concurrent collection, batch reporting, and rate limiting.
 type MetricsAgent struct {
 	Agent
 	stats          *runtime.MemStats
@@ -44,6 +65,23 @@ type MetricsAgent struct {
 	batchSize      int
 }
 
+// NewAgent creates and initializes a new metrics collection agent.
+//
+// client: HTTP client configured with server endpoint.
+// batchesEnabled: Enables batch reporting when true.
+// signKey: Secret key for request signature generation.
+// rateLimit: Maximum concurrent HTTP requests (0 for no limit).
+// batchSize: Maximum metrics per batch (ignored if batchesEnabled false).
+//
+// Returns:
+//   - *MetricsAgent: Fully initialized agent ready for polling
+//   - error: If system metric collection fails during initialization
+//
+// The agent initializes with:
+//   - Default metrics (PollCount, RandomValue)
+//   - Go runtime metrics
+//   - System metrics (CPU, memory)
+//   - Request signer for secure communication
 func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, rateLimit int, batchSize int) (*MetricsAgent, error) {
 	metrics := []metric.Metric{
 		// Counters
@@ -94,6 +132,14 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 	return agent, nil
 }
 
+// Poll collects current values for all metrics.
+// Updates internal metric states and queues them for reporting.
+// Non-blocking: if previous report is in progress, new metrics are skipped.
+// Collected metrics include:
+//   - Go runtime memory statistics (via runtime.ReadMemStats)
+//   - CPU utilization (via gopsutil)
+//   - System memory (via gopsutil)
+//   - All registered custom metrics
 func (agent *MetricsAgent) Poll() {
 	slog.Debug("Start metrics polling")
 	runtime.ReadMemStats(agent.stats)
@@ -125,6 +171,10 @@ func (agent *MetricsAgent) Poll() {
 	slog.Debug("Finish metrics polling")
 }
 
+// Report sends queued metrics to the server.
+// Uses either batch or individual reporting based on configuration.
+// Non-blocking: returns immediately if no metrics are queued.
+// Returns error if reporting fails for any metric.
 func (agent *MetricsAgent) Report() error {
 	slog.Debug("Start metrics report")
 	select {
@@ -139,6 +189,10 @@ func (agent *MetricsAgent) Report() error {
 	}
 }
 
+// reportIndividual sends metrics one-by-one with concurrent workers.
+// Uses worker pool pattern with configurable rate limit.
+// metrics: Slice of metrics to send individually.
+// Returns combined error if any worker encounters errors.
 func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
 
 	jobs := make(chan metric.Metric)
@@ -174,6 +228,11 @@ func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
 	return nil
 }
 
+// reportWorker is a goroutine that processes individual metric reporting jobs.
+// wg: WaitGroup for coordinating worker shutdown.
+// jobs: Channel receiving metrics to report.
+// errCh: Channel for reporting errors (non-blocking).
+// Each worker handles metrics sequentially until jobs channel closes.
 func (agent *MetricsAgent) reportWorker(wg *sync.WaitGroup, jobs <-chan metric.Metric, errCh chan<- error) {
 	defer wg.Done()
 	slog.Debug("Worker start")
@@ -221,6 +280,10 @@ func (agent *MetricsAgent) reportWorker(wg *sync.WaitGroup, jobs <-chan metric.M
 	}
 }
 
+// reportBatchWithLimit sends metrics in batches with rate limiting.
+// Splits metrics into chunks and processes them concurrently up to rate limit.
+// metrics: All metrics to send in batches.
+// Returns combined error if any batch fails.
 func (agent *MetricsAgent) reportBatchWithLimit(metrics []metric.Metric) error {
 
 	chunks := chunkMetrics(metrics, agent.batchSize)
@@ -257,6 +320,10 @@ func (agent *MetricsAgent) reportBatchWithLimit(metrics []metric.Metric) error {
 	return nil
 }
 
+// chunkMetrics splits a slice of metrics into chunks of specified size.
+// metrics: Slice to split.
+// size: Maximum chunk size.
+// Returns 2D slice where each inner slice has length <= size.
 func chunkMetrics(metrics []metric.Metric, size int) [][]metric.Metric {
 	var chunks [][]metric.Metric
 	for size < len(metrics) {
@@ -266,6 +333,9 @@ func chunkMetrics(metrics []metric.Metric, size int) [][]metric.Metric {
 	return chunks
 }
 
+// reportBatch sends a single batch of metrics in one HTTP request.
+// metrics: Metrics to include in this batch.
+// Returns error if any step fails (preparation, marshaling, sending).
 func (agent *MetricsAgent) reportBatch(metrics []metric.Metric) error {
 	var metricModels []models.Metrics
 	for _, m := range metrics {
@@ -294,6 +364,10 @@ func (agent *MetricsAgent) reportBatch(metrics []metric.Metric) error {
 	return nil
 }
 
+// prepareMetric converts a metric.Metric to models.Metrics for transmission.
+// m: Source metric with current value.
+// Returns JSON-serializable model with appropriate value fields set.
+// Returns error for unknown metric types or value conversion failures.
 func (agent *MetricsAgent) prepareMetric(m metric.Metric) (*models.Metrics, error) {
 	metricName := m.Name()
 	metricType := m.Type()
@@ -324,6 +398,10 @@ func (agent *MetricsAgent) prepareMetric(m metric.Metric) (*models.Metrics, erro
 	return metricModel, nil
 }
 
+// compressData compresses JSON data using gzip for network transmission.
+// data: Raw JSON bytes to compress.
+// Returns buffer containing gzipped data.
+// Returns error if compression fails.
 func (agent *MetricsAgent) compressData(data []byte) (*bytes.Buffer, error) {
 	var buffer bytes.Buffer
 	compressor := gzip.NewWriter(&buffer)
@@ -340,6 +418,11 @@ func (agent *MetricsAgent) compressData(data []byte) (*bytes.Buffer, error) {
 	return &buffer, nil
 }
 
+// sendRequest sends an HTTP POST request with compressed, signed data.
+// endpoint: Server endpoint path (e.g., "/update/" or "/updates/").
+// body: Compressed request body.
+// Returns error if request fails or server returns non-200 status.
+// Automatically adds required headers: Content-Type, Content-Encoding, Hash.
 func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) error {
 
 	sign := agent.signer.Sign(body.Bytes())
@@ -385,6 +468,10 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 	return nil
 }
 
+// dispatchReports routes metrics to appropriate reporting method.
+// Internal method used by StartReporting for consistent dispatch logic.
+// metrics: Collected metrics to report.
+// Returns error if reporting fails.
 func (agent *MetricsAgent) dispatchReports(metrics []metric.Metric) error {
 	if agent.batchesEnabled {
 		return agent.reportBatch(metrics)
@@ -419,6 +506,10 @@ func (agent *MetricsAgent) dispatchReports(metrics []metric.Metric) error {
 	return nil
 }
 
+// StartReporting runs the continuous reporting loop.
+// Listens for metrics on jobCh and dispatches them for reporting.
+// ctx: Context for graceful shutdown.
+// Runs until context is cancelled, ensuring in-progress reports complete.
 func (agent *MetricsAgent) StartReporting(ctx context.Context) {
 	for {
 		select {
