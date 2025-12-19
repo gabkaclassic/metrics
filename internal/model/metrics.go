@@ -1,3 +1,4 @@
+// Package models provides data structures for metrics transmission and storage.
 package models
 
 const (
@@ -5,15 +6,12 @@ const (
 	Gauge   = "gauge"
 )
 
-// NOTE: Не усложняем пример, вводя иерархическую вложенность структур.
-// Органичиваясь плоской моделью.
-// Delta и Value объявлены через указатели,
-// что бы отличать значение "0", от не заданного значения
-// и соответственно не кодировать в структуру.
+// Metrics represents a metric data structure for JSON serialization.
+// It's used for communication between agent and server.
 type Metrics struct {
-	ID    string   `json:"id"`
-	MType string   `json:"type"`
-	Delta *int64   `json:"delta,omitempty"`
-	Value *float64 `json:"value,omitempty"`
+	ID    string   `json:"id"`              // Metric name identifier
+	MType string   `json:"type"`            // Metric type: "gauge" or "counter"
+	Delta *int64   `json:"delta,omitempty"` // Counter metric value (increment)
+	Value *float64 `json:"value,omitempty"` // Gauge metric value (absolute)
 	Hash  string   `json:"hash,omitempty"`
 }
