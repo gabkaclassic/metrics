@@ -22,6 +22,13 @@ import (
 	"github.com/gabkaclassic/metrics/pkg/logger"
 )
 
+// @title Metrics Service API
+// @version 1.0
+// @description HTTP API for collecting and retrieving gauge and counter metrics.
+// @description Supports plain-text, JSON and batch endpoints.
+// @contact.name gabkaclassic
+// @license.name MIT
+// @BasePath /
 func main() {
 
 	if err := run(); err != nil {

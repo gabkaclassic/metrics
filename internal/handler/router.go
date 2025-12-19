@@ -5,8 +5,6 @@ import (
 
 	"github.com/gabkaclassic/metrics/pkg/middleware"
 	"github.com/go-chi/chi/v5"
-
-	chi_middleware "github.com/go-chi/chi/v5/middleware"
 )
 
 type RouterConfiguration struct {
@@ -25,9 +23,6 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 
 	// Ping endpoint
 	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {})
-
-	// Profiler
-	router.Mount("/debug/", chi_middleware.Profiler())
 
 	setupMetricsRouter(router, config.MetricsHandler, middleware.Decompress(), middleware.SignVerify(config.SignKey))
 

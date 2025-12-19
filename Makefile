@@ -13,6 +13,9 @@ build:
 profile:
 	go tool pprof -http=":${PORT}" -seconds=60 ${URL}/debug/pprof/profile
 
+swagger:
+	swag init -d ./cmd/server,./internal/handler,./internal/model,./pkg/error --output ./api
+
 test:
 	@echo "==> Running tests with coverage..."
 	@go clean -testcache

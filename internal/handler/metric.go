@@ -1,3 +1,14 @@
+// Package handler provides HTTP handlers for metrics API.
+//
+// Metrics API supports:
+//   - Plain-text REST endpoints
+//   - JSON-based API
+//   - Batch operations
+//   - HTML metrics rendering
+//
+// Base URL: /
+//
+// Schemes: http
 package handler
 
 import (
@@ -50,6 +61,19 @@ func NewMetricsHandler(service service.MetricsService) (*MetricsHandler, error) 
 	}, nil
 }
 
+// Save saves a single metric using plain-text URL parameters.
+//
+// @Summary Save metric (plain-text)
+// @Description Saves a metric using URL parameters. Counters are incremented, gauges are overwritten.
+// @Tags Metrics
+// @Param type path string true "Metric type" Enums(gauge,counter)
+// @Param id path string true "Metric ID"
+// @Param value path string true "Metric value"
+// @Success 200 "Metric saved"
+// @Failure 400 {object} api.APIError "Bad Request"
+// @Failure 404 {object} api.APIError "Not Found"
+// @Failure 500 {object} api.APIError "Internal Error"
+// @Router /update/{type}/{id}/{value} [post]
 func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 
 	metricID := r.PathValue("id")
@@ -64,6 +88,19 @@ func (handler *MetricsHandler) Save(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// SaveJSON saves a single metric using JSON payload.
+//
+// @Summary Save metric (JSON)
+// @Description Saves a metric using JSON body. Counters are incremented, gauges are overwritten.
+// @Tags Metrics
+// @Accept json
+// @Produce json
+// @Param metric body models.Metrics true "Metric payload"
+// @Success 200 {object} models.Metrics "Saved metric"
+// @Failure 400 {object} api.APIError "Bad Request"
+// @Failure 422 {object} api.APIError "Invalid JSON"
+// @Failure 500 {object} api.APIError "Internal Error"
+// @Router /update [post]
 func (handler *MetricsHandler) SaveJSON(w http.ResponseWriter, r *http.Request) {
 	metric := &models.Metrics{}
 	err := json.NewDecoder(r.Body).Decode(metric)
@@ -87,6 +124,18 @@ func (handler *MetricsHandler) SaveJSON(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+// SaveAll saves multiple metrics in a single request.
+//
+// @Summary Save metrics batch
+// @Description Saves multiple metrics. Counters are aggregated by ID, gauges use the last value.
+// @Tags Metrics
+// @Accept json
+// @Param metrics body []models.Metrics true "Metrics list"
+// @Success 200 "Metrics saved"
+// @Failure 400 {object} api.APIError "Bad Request"
+// @Failure 422 {object} api.APIError "Invalid JSON"
+// @Failure 500 {object} api.APIError "Internal Error"
+// @Router /updates [post]
 func (handler *MetricsHandler) SaveAll(w http.ResponseWriter, r *http.Request) {
 	metrics := make([]models.Metrics, 0)
 	err := json.NewDecoder(r.Body).Decode(&metrics)
@@ -103,6 +152,18 @@ func (handler *MetricsHandler) SaveAll(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// Get retrieves a metric value by ID and type.
+//
+// @Summary Get metric value
+// @Description Returns raw metric value. Counter → int64, Gauge → float64.
+// @Tags Metrics
+// @Produce json
+// @Param type path string true "Metric type" Enums(gauge,counter)
+// @Param id path string true "Metric ID"
+// @Success 200 {object} any "Metric value"
+// @Failure 404 {object} api.APIError "Not Found"
+// @Failure 500 {object} api.APIError "Internal Error"
+// @Router /value/{type}/{id} [get]
 func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 
 	metricID := r.PathValue("id")
@@ -123,6 +184,19 @@ func (handler *MetricsHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetJSON retrieves a metric using JSON request.
+//
+// @Summary Get metric (JSON)
+// @Description Returns full metric structure.
+// @Tags Metrics
+// @Accept json
+// @Produce json
+// @Param metric body models.Metrics true "Metric identifier"
+// @Success 200 {object} models.Metrics "Metric data"
+// @Failure 404 {object} api.APIError "Not Found"
+// @Failure 422 {object} api.APIError "Invalid JSON"
+// @Failure 500 {object} api.APIError "Internal Error"
+// @Router /value [post]
 func (handler *MetricsHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
 
 	metric := &models.Metrics{}
@@ -148,6 +222,16 @@ func (handler *MetricsHandler) GetJSON(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetAll renders all metrics as an HTML page.
+//
+// @Summary Get all metrics (HTML)
+// @Description Returns all stored metrics rendered as HTML table.
+// @Tags Metrics
+// @Produce text/html
+// @Success 200 "HTML page with metrics"
+// @Failure 404 {object} api.APIError "Not Found"
+// @Failure 500 {object} api.APIError "Internal Error"
+// @Router / [get]
 func (handler *MetricsHandler) GetAll(w http.ResponseWriter, r *http.Request) {
 	metrics, err := handler.service.GetAll(r.Context())
 

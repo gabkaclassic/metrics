@@ -1,0 +1,249 @@
+basePath: /
+definitions:
+  api.APIError:
+    properties:
+      error:
+        description: |-
+          Error message
+          example: invalid metric type
+        type: string
+    type: object
+  models.Metrics:
+    properties:
+      delta:
+        description: |-
+          Counter increment value.
+          Used only when type is "counter".
+          example: 42
+        type: integer
+      hash:
+        description: |-
+          Optional integrity hash.
+          example: 1a2b3c4d
+        type: string
+      id:
+        description: |-
+          Metric identifier (name).
+          required: true
+        type: string
+      type:
+        description: |-
+          Metric type.
+          required: true
+          enum: gauge,counter
+        type: string
+      value:
+        description: |-
+          Gauge absolute value.
+          Used only when type is "gauge".
+          example: 3.14
+        type: number
+    type: object
+info:
+  contact:
+    name: gabkaclassic
+  description: |-
+    HTTP API for collecting and retrieving gauge and counter metrics.
+    Supports plain-text, JSON and batch endpoints.
+  license:
+    name: MIT
+  title: Metrics Service API
+  version: "1.0"
+paths:
+  /:
+    get:
+      description: Returns all stored metrics rendered as HTML table.
+      produces:
+      - text/html
+      responses:
+        "200":
+          description: HTML page with metrics
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Get all metrics (HTML)
+      tags:
+      - Metrics
+  /update:
+    post:
+      consumes:
+      - application/json
+      description: Saves a metric using JSON body. Counters are incremented, gauges
+        are overwritten.
+      parameters:
+      - description: Metric payload
+        in: body
+        name: metric
+        required: true
+        schema:
+          $ref: '#/definitions/models.Metrics'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Saved metric
+          schema:
+            $ref: '#/definitions/models.Metrics'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "422":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Save metric (JSON)
+      tags:
+      - Metrics
+  /update/{type}/{id}/{value}:
+    post:
+      description: Saves a metric using URL parameters. Counters are incremented,
+        gauges are overwritten.
+      parameters:
+      - description: Metric type
+        enum:
+        - gauge
+        - counter
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: Metric ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Metric value
+        in: path
+        name: value
+        required: true
+        type: string
+      responses:
+        "200":
+          description: Metric saved
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Save metric (plain-text)
+      tags:
+      - Metrics
+  /updates:
+    post:
+      consumes:
+      - application/json
+      description: Saves multiple metrics. Counters are aggregated by ID, gauges use
+        the last value.
+      parameters:
+      - description: Metrics list
+        in: body
+        name: metrics
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.Metrics'
+          type: array
+      responses:
+        "200":
+          description: Metrics saved
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "422":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Save metrics batch
+      tags:
+      - Metrics
+  /value:
+    post:
+      consumes:
+      - application/json
+      description: Returns full metric structure.
+      parameters:
+      - description: Metric identifier
+        in: body
+        name: metric
+        required: true
+        schema:
+          $ref: '#/definitions/models.Metrics'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Metric data
+          schema:
+            $ref: '#/definitions/models.Metrics'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "422":
+          description: Invalid JSON
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Get metric (JSON)
+      tags:
+      - Metrics
+  /value/{type}/{id}:
+    get:
+      description: Returns raw metric value. Counter → int64, Gauge → float64.
+      parameters:
+      - description: Metric type
+        enum:
+        - gauge
+        - counter
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: Metric ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Metric value
+          schema: {}
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.APIError'
+        "500":
+          description: Internal Error
+          schema:
+            $ref: '#/definitions/api.APIError'
+      summary: Get metric value
+      tags:
+      - Metrics
+swagger: "2.0"
