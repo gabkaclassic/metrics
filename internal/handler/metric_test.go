@@ -127,7 +127,7 @@ func TestMetricsHandler_SaveAll(t *testing.T) {
 		name           string
 		method         string
 		requestBody    string
-		mockSaveAll    func(ctx context.Context, metrics *[]models.Metrics) *api.APIError
+		mockSaveAll    func(ctx context.Context, metrics []models.Metrics) *api.APIError
 		expectStatus   int
 		expectErrorMsg string
 	}{
@@ -138,11 +138,11 @@ func TestMetricsHandler_SaveAll(t *testing.T) {
 				{"id": "c1", "type": "counter", "delta": 10},
 				{"id": "c2", "type": "counter", "delta": 5}
 			]`,
-			mockSaveAll: func(ctx context.Context, metrics *[]models.Metrics) *api.APIError {
-				assert.Len(t, *metrics, 2)
-				assert.Equal(t, "c1", (*metrics)[0].ID)
-				assert.Equal(t, models.Counter, (*metrics)[0].MType)
-				assert.Equal(t, int64(10), *(*metrics)[0].Delta)
+			mockSaveAll: func(ctx context.Context, metrics []models.Metrics) *api.APIError {
+				assert.Len(t, metrics, 2)
+				assert.Equal(t, "c1", (metrics)[0].ID)
+				assert.Equal(t, models.Counter, (metrics)[0].MType)
+				assert.Equal(t, int64(10), *(metrics)[0].Delta)
 				return nil
 			},
 			expectStatus: http.StatusOK,
@@ -154,11 +154,11 @@ func TestMetricsHandler_SaveAll(t *testing.T) {
 				{"id": "g1", "type": "gauge", "value": 3.14},
 				{"id": "g2", "type": "gauge", "value": 2.71}
 			]`,
-			mockSaveAll: func(ctx context.Context, metrics *[]models.Metrics) *api.APIError {
-				assert.Len(t, *metrics, 2)
-				assert.Equal(t, "g1", (*metrics)[0].ID)
-				assert.Equal(t, models.Gauge, (*metrics)[0].MType)
-				assert.Equal(t, 3.14, *(*metrics)[0].Value)
+			mockSaveAll: func(ctx context.Context, metrics []models.Metrics) *api.APIError {
+				assert.Len(t, metrics, 2)
+				assert.Equal(t, "g1", (metrics)[0].ID)
+				assert.Equal(t, models.Gauge, (metrics)[0].MType)
+				assert.Equal(t, 3.14, *(metrics)[0].Value)
 				return nil
 			},
 			expectStatus: http.StatusOK,
@@ -170,8 +170,8 @@ func TestMetricsHandler_SaveAll(t *testing.T) {
 				{"id": "c1", "type": "counter", "delta": 10},
 				{"id": "g1", "type": "gauge", "value": 3.14}
 			]`,
-			mockSaveAll: func(ctx context.Context, metrics *[]models.Metrics) *api.APIError {
-				assert.Len(t, *metrics, 2)
+			mockSaveAll: func(ctx context.Context, metrics []models.Metrics) *api.APIError {
+				assert.Len(t, metrics, 2)
 				return nil
 			},
 			expectStatus: http.StatusOK,
@@ -180,8 +180,8 @@ func TestMetricsHandler_SaveAll(t *testing.T) {
 			name:        "empty metrics array",
 			method:      http.MethodPost,
 			requestBody: `[]`,
-			mockSaveAll: func(ctx context.Context, metrics *[]models.Metrics) *api.APIError {
-				assert.Len(t, *metrics, 0)
+			mockSaveAll: func(ctx context.Context, metrics []models.Metrics) *api.APIError {
+				assert.Len(t, metrics, 0)
 				return nil
 			},
 			expectStatus: http.StatusOK,
@@ -190,7 +190,7 @@ func TestMetricsHandler_SaveAll(t *testing.T) {
 			name:           "invalid JSON",
 			method:         http.MethodPost,
 			requestBody:    `invalid json`,
-			mockSaveAll:    func(ctx context.Context, metrics *[]models.Metrics) *api.APIError { return nil },
+			mockSaveAll:    func(ctx context.Context, metrics []models.Metrics) *api.APIError { return nil },
 			expectStatus:   http.StatusUnprocessableEntity,
 			expectErrorMsg: "Invalid input JSON",
 		},
@@ -200,7 +200,7 @@ func TestMetricsHandler_SaveAll(t *testing.T) {
 			requestBody: `[
 				{"id": "c1", "type": "counter", "delta": 10}
 			]`,
-			mockSaveAll: func(ctx context.Context, metrics *[]models.Metrics) *api.APIError {
+			mockSaveAll: func(ctx context.Context, metrics []models.Metrics) *api.APIError {
 				return api.Internal("save error", errors.New("some error"))
 			},
 			expectStatus:   http.StatusInternalServerError,
@@ -304,7 +304,7 @@ func TestMetricsHandler_GetJSON(t *testing.T) {
 	tests := []struct {
 		name           string
 		body           string
-		mockGet        func(ctx context.Context, id, mType string) (*models.Metrics, *api.APIError)
+		mockGet        func(ctx context.Context, id, mType string) (models.Metrics, *api.APIError)
 		expectStatus   int
 		expectErrorMsg string
 		expectGetCall  bool
@@ -312,11 +312,11 @@ func TestMetricsHandler_GetJSON(t *testing.T) {
 		{
 			name: "valid JSON and service success",
 			body: `{"id":"m1","type":"counter"}`,
-			mockGet: func(ctx context.Context, id, mType string) (*models.Metrics, *api.APIError) {
+			mockGet: func(ctx context.Context, id, mType string) (models.Metrics, *api.APIError) {
 				assert.Equal(t, "m1", id)
 				assert.Equal(t, "counter", mType)
 				delta := int64(42)
-				return &models.Metrics{
+				return models.Metrics{
 					ID:    id,
 					MType: mType,
 					Delta: &delta,
@@ -335,8 +335,8 @@ func TestMetricsHandler_GetJSON(t *testing.T) {
 		{
 			name: "service returns error",
 			body: `{"id":"m2","type":"gauge"}`,
-			mockGet: func(ctx context.Context, id, mType string) (*models.Metrics, *api.APIError) {
-				return nil, api.NotFound("metric not found")
+			mockGet: func(ctx context.Context, id, mType string) (models.Metrics, *api.APIError) {
+				return models.Metrics{}, api.NotFound("metric not found")
 			},
 			expectStatus:   http.StatusNotFound,
 			expectErrorMsg: "metric not found",
@@ -459,7 +459,7 @@ func TestMetricsHandler_Get(t *testing.T) {
 func TestMetricsHandler_GetAll(t *testing.T) {
 	tests := []struct {
 		name           string
-		mockReturn     *map[string]any
+		mockReturn     map[string]any
 		expectedStatus int
 		expectedError  *api.APIError
 	}{
@@ -471,13 +471,13 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 		},
 		{
 			name:           "empty metrics",
-			mockReturn:     &map[string]any{},
+			mockReturn:     map[string]any{},
 			expectedStatus: http.StatusOK,
 			expectedError:  nil,
 		},
 		{
 			name: "metrics with values",
-			mockReturn: &map[string]any{
+			mockReturn: map[string]any{
 				"c1": int64(10),
 				"g1": float64(3.14),
 			},
@@ -517,7 +517,7 @@ func TestMetricsHandler_GetAll(t *testing.T) {
 					assert.Contains(t, bodyStr, "Metrics not found")
 				}
 			} else {
-				for id, val := range *tt.mockReturn {
+				for id, val := range tt.mockReturn {
 					assert.Contains(t, bodyStr, id)
 					assert.Contains(t, bodyStr, fmt.Sprintf("%v", val))
 				}

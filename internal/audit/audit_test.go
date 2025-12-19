@@ -177,13 +177,13 @@ func TestNewFileHandler(t *testing.T) {
 
 			if tt.expectError {
 				assert.Error(t, err)
-				assert.Nil(t, handler)
+				assert.Equal(t, handler, fileHandler{})
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, handler)
 				assert.NotNil(t, handler.file)
 
-				if handler != nil && handler.file != nil {
+				if handler.file != nil {
 					handler.file.Close()
 				}
 			}
@@ -253,13 +253,13 @@ func TestFileHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name        string
 		calls       int
-		event       *event
+		event       event
 		expectLines int
 	}{
 		{
 			name:  "single write",
 			calls: 1,
-			event: &event{
+			event: event{
 				Ts:        1,
 				Metrics:   []string{"m1", "m2"},
 				IPAddress: "127.0.0.1",
@@ -269,7 +269,7 @@ func TestFileHandler_Handle(t *testing.T) {
 		{
 			name:  "concurrent writes",
 			calls: 10,
-			event: &event{
+			event: event{
 				Ts:        2,
 				Metrics:   []string{"m"},
 				IPAddress: "ip",
@@ -286,9 +286,9 @@ func TestFileHandler_Handle(t *testing.T) {
 			assert.NoError(t, err)
 			defer f.Close()
 
-			h := &fileHandler{
-				file: f,
-			}
+			h, err := newFileHandler(tmp)
+
+			assert.NoError(t, err)
 
 			var wg sync.WaitGroup
 
@@ -369,7 +369,7 @@ func TestURLHandler_Handle(t *testing.T) {
 				client: client,
 			}
 
-			e := &event{
+			e := event{
 				Ts:        123,
 				Metrics:   []string{"m1", "m2"},
 				IPAddress: "127.0.0.1",

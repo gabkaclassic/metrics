@@ -92,13 +92,13 @@ func TestMetricsRepository_updateMetric(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		metric      models.Metrics
+		metric      *models.Metrics
 		updateFunc  func(metric models.Metrics) error
 		expectError bool
 	}{
 		{
 			name:   "successful update",
-			metric: models.Metrics{ID: "m1", Value: floatPtr(10)},
+			metric: &models.Metrics{ID: "m1", Value: floatPtr(10)},
 			updateFunc: func(metric models.Metrics) error {
 				repo.storage.Metrics[metric.ID] = metric
 				return nil
@@ -107,7 +107,7 @@ func TestMetricsRepository_updateMetric(t *testing.T) {
 		},
 		{
 			name:   "update returns error",
-			metric: models.Metrics{ID: "m2", Value: floatPtr(20)},
+			metric: &models.Metrics{ID: "m2", Value: floatPtr(20)},
 			updateFunc: func(metric models.Metrics) error {
 				return errors.New("update failed")
 			},
@@ -117,13 +117,13 @@ func TestMetricsRepository_updateMetric(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := repo.updateMetric(t.Context(), tt.metric, tt.updateFunc)
+			err := repo.updateMetric(t.Context(), *tt.metric, tt.updateFunc)
 			if tt.expectError {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 				stored, _ := repo.Get(t.Context(), tt.metric.ID)
-				assert.Equal(t, tt.metric, *stored)
+				assert.Equal(t, tt.metric, stored)
 			}
 		})
 	}
@@ -140,18 +140,18 @@ func TestMemoryMetricsRepository_updateMetrics(t *testing.T) {
 	tests := []struct {
 		name            string
 		initialStorage  map[string]models.Metrics
-		metrics         *[]models.Metrics
-		updateFn        func(metric *[]models.Metrics) error
+		metrics         []models.Metrics
+		updateFn        func(metric []models.Metrics) error
 		expectedError   bool
 		expectedStorage map[string]models.Metrics
 	}{
 		{
 			name:           "successful update",
 			initialStorage: map[string]models.Metrics{},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "test1", MType: models.Gauge, Value: floatPtr(1.0)},
 			},
-			updateFn: func(metrics *[]models.Metrics) error {
+			updateFn: func(metrics []models.Metrics) error {
 				return nil
 			},
 			expectedError:   false,
@@ -160,10 +160,10 @@ func TestMemoryMetricsRepository_updateMetrics(t *testing.T) {
 		{
 			name:           "update function error",
 			initialStorage: map[string]models.Metrics{},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "test1", MType: models.Gauge, Value: floatPtr(1.0)},
 			},
-			updateFn: func(metrics *[]models.Metrics) error {
+			updateFn: func(metrics []models.Metrics) error {
 				return errors.New("update error")
 			},
 			expectedError:   true,
@@ -172,10 +172,10 @@ func TestMemoryMetricsRepository_updateMetrics(t *testing.T) {
 		{
 			name:           "initialize nil storage",
 			initialStorage: nil,
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "test1", MType: models.Gauge, Value: floatPtr(1.0)},
 			},
-			updateFn: func(metrics *[]models.Metrics) error {
+			updateFn: func(metrics []models.Metrics) error {
 				return nil
 			},
 			expectedError:   false,
@@ -184,8 +184,8 @@ func TestMemoryMetricsRepository_updateMetrics(t *testing.T) {
 		{
 			name:           "empty metrics",
 			initialStorage: map[string]models.Metrics{},
-			metrics:        &[]models.Metrics{},
-			updateFn: func(metrics *[]models.Metrics) error {
+			metrics:        []models.Metrics{},
+			updateFn: func(metrics []models.Metrics) error {
 				return nil
 			},
 			expectedError:   false,
@@ -260,14 +260,14 @@ func TestMemoryMetricsRepository_AddAll(t *testing.T) {
 	tests := []struct {
 		name            string
 		initialStorage  map[string]models.Metrics
-		metrics         *[]models.Metrics
+		metrics         []models.Metrics
 		expectedStorage map[string]models.Metrics
 		expectedError   bool
 	}{
 		{
 			name:           "add new counters",
 			initialStorage: map[string]models.Metrics{},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 				{ID: "c2", MType: models.Counter, Delta: intPtr(5)},
 			},
@@ -283,7 +283,7 @@ func TestMemoryMetricsRepository_AddAll(t *testing.T) {
 				"c1": {ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 				"c2": {ID: "c2", MType: models.Counter, Delta: intPtr(5)},
 			},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(3)},
 				{ID: "c2", MType: models.Counter, Delta: intPtr(7)},
 				{ID: "c3", MType: models.Counter, Delta: intPtr(1)},
@@ -300,7 +300,7 @@ func TestMemoryMetricsRepository_AddAll(t *testing.T) {
 			initialStorage: map[string]models.Metrics{
 				"c1": {ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
-			metrics: &[]models.Metrics{},
+			metrics: []models.Metrics{},
 			expectedStorage: map[string]models.Metrics{
 				"c1": {ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
@@ -309,7 +309,7 @@ func TestMemoryMetricsRepository_AddAll(t *testing.T) {
 		{
 			name:           "nil storage initialized",
 			initialStorage: nil,
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			expectedStorage: map[string]models.Metrics{
@@ -322,7 +322,7 @@ func TestMemoryMetricsRepository_AddAll(t *testing.T) {
 			initialStorage: map[string]models.Metrics{
 				"c1": {ID: "c1", MType: models.Counter, Delta: intPtr(100)},
 			},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(50)},
 				{ID: "c2", MType: models.Counter, Delta: intPtr(25)},
 			},
@@ -410,14 +410,14 @@ func TestMemoryMetricsRepository_ResetAll(t *testing.T) {
 	tests := []struct {
 		name            string
 		initialStorage  map[string]models.Metrics
-		metrics         *[]models.Metrics
+		metrics         []models.Metrics
 		expectedStorage map[string]models.Metrics
 		expectedError   bool
 	}{
 		{
 			name:           "add new gauges",
 			initialStorage: map[string]models.Metrics{},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 				{ID: "g2", MType: models.Gauge, Value: floatPtr(2.71)},
 			},
@@ -433,7 +433,7 @@ func TestMemoryMetricsRepository_ResetAll(t *testing.T) {
 				"g1": {ID: "g1", MType: models.Gauge, Value: floatPtr(1.0)},
 				"g2": {ID: "g2", MType: models.Gauge, Value: floatPtr(2.0)},
 			},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(10.5)},
 				{ID: "g2", MType: models.Gauge, Value: floatPtr(20.7)},
 				{ID: "g3", MType: models.Gauge, Value: floatPtr(30.1)},
@@ -450,7 +450,7 @@ func TestMemoryMetricsRepository_ResetAll(t *testing.T) {
 			initialStorage: map[string]models.Metrics{
 				"g1": {ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
-			metrics: &[]models.Metrics{},
+			metrics: []models.Metrics{},
 			expectedStorage: map[string]models.Metrics{
 				"g1": {ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
@@ -459,7 +459,7 @@ func TestMemoryMetricsRepository_ResetAll(t *testing.T) {
 		{
 			name:           "nil storage initialized",
 			initialStorage: nil,
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			expectedStorage: map[string]models.Metrics{
@@ -472,7 +472,7 @@ func TestMemoryMetricsRepository_ResetAll(t *testing.T) {
 			initialStorage: map[string]models.Metrics{
 				"g1": {ID: "g1", MType: models.Gauge, Value: floatPtr(100.0)},
 			},
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(50.5)},
 				{ID: "g2", MType: models.Gauge, Value: floatPtr(25.3)},
 			},
@@ -580,7 +580,7 @@ func TestMetricsRepository_GetAll(t *testing.T) {
 			result, _ := repo.GetAll(t.Context())
 
 			assert.NotNil(t, result)
-			assert.Equal(t, tt.expected, *result)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -652,12 +652,12 @@ func TestMemoryMetricsRepository_GetAllMetrics(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.NotNil(t, result)
-				assert.Equal(t, tt.expectedCount, len(*result))
+				assert.Equal(t, tt.expectedCount, len(result))
 
 				if tt.initialStorage != nil {
 					for id, expectedMetric := range tt.initialStorage {
 						found := false
-						for _, actualMetric := range *result {
+						for _, actualMetric := range result {
 							if actualMetric.ID == id {
 								found = true
 								assert.Equal(t, expectedMetric.ID, actualMetric.ID)

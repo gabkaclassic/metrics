@@ -61,7 +61,7 @@ func TestDBMetricsRepository_GetAll(t *testing.T) {
 	tests := []struct {
 		name        string
 		mockQuery   func()
-		expectData  *map[string]any
+		expectData  map[string]any
 		expectError bool
 	}{
 		{
@@ -72,7 +72,7 @@ func TestDBMetricsRepository_GetAll(t *testing.T) {
 					AddRow("gauge1", string(metric.GaugeType), nil, float64(3.14))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &map[string]any{
+			expectData: map[string]any{
 				"counter1": int64(5),
 				"gauge1":   float64(3.14),
 			},
@@ -419,13 +419,13 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		metrics     *[]models.Metrics
+		metrics     []models.Metrics
 		mockQuery   func()
 		expectError bool
 	}{
 		{
 			name: "success single counter",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
@@ -444,7 +444,7 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		},
 		{
 			name: "success multiple counters",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 				{ID: "c2", MType: models.Counter, Delta: intPtr(5)},
 				{ID: "c1", MType: models.Counter, Delta: intPtr(3)},
@@ -465,7 +465,7 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		},
 		{
 			name:    "empty metrics",
-			metrics: &[]models.Metrics{},
+			metrics: []models.Metrics{},
 			mockQuery: func() {
 				mock.ExpectBegin()
 				mock.ExpectExec(regexp.QuoteMeta(`
@@ -482,7 +482,7 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		},
 		{
 			name: "begin transaction error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
@@ -492,7 +492,7 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		},
 		{
 			name: "exec query error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
@@ -511,7 +511,7 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		},
 		{
 			name: "commit error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
@@ -557,13 +557,13 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		metrics     *[]models.Metrics
+		metrics     []models.Metrics
 		mockQuery   func()
 		expectError bool
 	}{
 		{
 			name: "success single gauge",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
@@ -582,7 +582,7 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		},
 		{
 			name: "success multiple gauges",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 				{ID: "g2", MType: models.Gauge, Value: floatPtr(2.71)},
 				{ID: "g3", MType: models.Gauge, Value: floatPtr(1.41)},
@@ -603,7 +603,7 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		},
 		{
 			name:    "empty metrics",
-			metrics: &[]models.Metrics{},
+			metrics: []models.Metrics{},
 			mockQuery: func() {
 				mock.ExpectBegin()
 				mock.ExpectExec(regexp.QuoteMeta(`
@@ -620,7 +620,7 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		},
 		{
 			name: "begin transaction error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
@@ -630,7 +630,7 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		},
 		{
 			name: "exec query error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
@@ -649,7 +649,7 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		},
 		{
 			name: "commit error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
@@ -696,7 +696,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 	tests := []struct {
 		name        string
 		mockQuery   func()
-		expectData  *[]models.Metrics
+		expectData  []models.Metrics
 		expectError bool
 	}{
 		{
@@ -707,7 +707,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 					AddRow("gauge1", string(models.Gauge), nil, float64(3.14))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &[]models.Metrics{
+			expectData: []models.Metrics{
 				{ID: "counter1", MType: models.Counter, Delta: intPtr(5), Value: nil},
 				{ID: "gauge1", MType: models.Gauge, Delta: nil, Value: floatPtr(3.14)},
 			},
@@ -721,7 +721,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 					AddRow("counter2", string(models.Counter), int64(20), nil)
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &[]models.Metrics{
+			expectData: []models.Metrics{
 				{ID: "counter1", MType: models.Counter, Delta: intPtr(10), Value: nil},
 				{ID: "counter2", MType: models.Counter, Delta: intPtr(20), Value: nil},
 			},
@@ -735,7 +735,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 					AddRow("gauge2", string(models.Gauge), nil, float64(2.2))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &[]models.Metrics{
+			expectData: []models.Metrics{
 				{ID: "gauge1", MType: models.Gauge, Delta: nil, Value: floatPtr(1.1)},
 				{ID: "gauge2", MType: models.Gauge, Delta: nil, Value: floatPtr(2.2)},
 			},
@@ -747,7 +747,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"})
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData:  &[]models.Metrics{},
+			expectData:  []models.Metrics{},
 			expectError: false,
 		},
 		{
@@ -793,9 +793,9 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, len(*tt.expectData), len(*result))
-				for i, expectedMetric := range *tt.expectData {
-					actualMetric := (*result)[i]
+				assert.Equal(t, len(tt.expectData), len(result))
+				for i, expectedMetric := range tt.expectData {
+					actualMetric := result[i]
 					assert.Equal(t, expectedMetric.ID, actualMetric.ID)
 					assert.Equal(t, expectedMetric.MType, actualMetric.MType)
 					if expectedMetric.Delta != nil {

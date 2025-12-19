@@ -72,7 +72,7 @@ func TestDumper_Dump(t *testing.T) {
 				metrics := []models.Metrics{
 					{ID: "test", MType: "counter", Delta: int64Ptr(5)},
 				}
-				m.EXPECT().GetAllMetrics(mock.Anything).Return(&metrics, nil)
+				m.EXPECT().GetAllMetrics(mock.Anything).Return(metrics, nil)
 			},
 			expectFile: true,
 			expectErr:  false,
@@ -82,7 +82,7 @@ func TestDumper_Dump(t *testing.T) {
 			filename: "empty_storage_dump.json",
 			mockSetup: func(m *repository.MockMetricsRepository) {
 				metrics := []models.Metrics{}
-				m.EXPECT().GetAllMetrics(mock.Anything).Return(&metrics, nil)
+				m.EXPECT().GetAllMetrics(mock.Anything).Return(metrics, nil)
 			},
 			expectFile: true,
 			expectErr:  false,
@@ -167,8 +167,8 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(mock.Anything, &counters).Return(nil)
-				m.EXPECT().ResetAll(mock.Anything, &gauges).Return(nil)
+				m.EXPECT().AddAll(mock.Anything, counters).Return(nil)
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(nil)
 			},
 			expectErr: false,
 		},
@@ -185,7 +185,7 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(mock.Anything, &counters).Return(nil)
+				m.EXPECT().AddAll(mock.Anything, counters).Return(nil)
 			},
 			expectErr: false,
 		},
@@ -202,7 +202,7 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().ResetAll(mock.Anything, &gauges).Return(nil)
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(nil)
 			},
 			expectErr: false,
 		},
@@ -241,8 +241,8 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(mock.Anything, &counters).Return(errors.New("counter error"))
-				m.EXPECT().ResetAll(mock.Anything, &gauges).Return(nil)
+				m.EXPECT().AddAll(mock.Anything, counters).Return(errors.New("counter error"))
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(nil)
 			},
 			expectErr: true,
 		},
@@ -259,8 +259,8 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(mock.Anything, &counters).Return(nil)
-				m.EXPECT().ResetAll(mock.Anything, &gauges).Return(errors.New("gauge error"))
+				m.EXPECT().AddAll(mock.Anything, counters).Return(nil)
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(errors.New("gauge error"))
 			},
 			expectErr: true,
 		},

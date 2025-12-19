@@ -37,7 +37,7 @@ func (_m *mockhandler) EXPECT() *mockhandler_Expecter {
 }
 
 // handle provides a mock function for the type mockhandler
-func (_mock *mockhandler) handle(eventMoqParam *event) {
+func (_mock *mockhandler) handle(eventMoqParam event) {
 	_mock.Called(eventMoqParam)
 	return
 }
@@ -48,16 +48,16 @@ type mockhandler_handle_Call struct {
 }
 
 // handle is a helper method to define mock.On call
-//   - eventMoqParam *event
+//   - eventMoqParam event
 func (_e *mockhandler_Expecter) handle(eventMoqParam interface{}) *mockhandler_handle_Call {
 	return &mockhandler_handle_Call{Call: _e.mock.On("handle", eventMoqParam)}
 }
 
-func (_c *mockhandler_handle_Call) Run(run func(eventMoqParam *event)) *mockhandler_handle_Call {
+func (_c *mockhandler_handle_Call) Run(run func(eventMoqParam event)) *mockhandler_handle_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *event
+		var arg0 event
 		if args[0] != nil {
-			arg0 = args[0].(*event)
+			arg0 = args[0].(event)
 		}
 		run(
 			arg0,
@@ -71,7 +71,7 @@ func (_c *mockhandler_handle_Call) Return() *mockhandler_handle_Call {
 	return _c
 }
 
-func (_c *mockhandler_handle_Call) RunAndReturn(run func(eventMoqParam *event)) *mockhandler_handle_Call {
+func (_c *mockhandler_handle_Call) RunAndReturn(run func(eventMoqParam event)) *mockhandler_handle_Call {
 	_c.Run(run)
 	return _c
 }
@@ -156,7 +156,7 @@ func (_c *MockAuditor_AuditMany_Call) RunAndReturn(run func(metricss []models.Me
 }
 
 // AuditOne provides a mock function for the type MockAuditor
-func (_mock *MockAuditor) AuditOne(metrics *models.Metrics, n int64, s string) {
+func (_mock *MockAuditor) AuditOne(metrics models.Metrics, n int64, s string) {
 	_mock.Called(metrics, n, s)
 	return
 }
@@ -167,18 +167,18 @@ type MockAuditor_AuditOne_Call struct {
 }
 
 // AuditOne is a helper method to define mock.On call
-//   - metrics *models.Metrics
+//   - metrics models.Metrics
 //   - n int64
 //   - s string
 func (_e *MockAuditor_Expecter) AuditOne(metrics interface{}, n interface{}, s interface{}) *MockAuditor_AuditOne_Call {
 	return &MockAuditor_AuditOne_Call{Call: _e.mock.On("AuditOne", metrics, n, s)}
 }
 
-func (_c *MockAuditor_AuditOne_Call) Run(run func(metrics *models.Metrics, n int64, s string)) *MockAuditor_AuditOne_Call {
+func (_c *MockAuditor_AuditOne_Call) Run(run func(metrics models.Metrics, n int64, s string)) *MockAuditor_AuditOne_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 *models.Metrics
+		var arg0 models.Metrics
 		if args[0] != nil {
-			arg0 = args[0].(*models.Metrics)
+			arg0 = args[0].(models.Metrics)
 		}
 		var arg1 int64
 		if args[1] != nil {
@@ -202,7 +202,7 @@ func (_c *MockAuditor_AuditOne_Call) Return() *MockAuditor_AuditOne_Call {
 	return _c
 }
 
-func (_c *MockAuditor_AuditOne_Call) RunAndReturn(run func(metrics *models.Metrics, n int64, s string)) *MockAuditor_AuditOne_Call {
+func (_c *MockAuditor_AuditOne_Call) RunAndReturn(run func(metrics models.Metrics, n int64, s string)) *MockAuditor_AuditOne_Call {
 	_c.Run(run)
 	return _c
 }

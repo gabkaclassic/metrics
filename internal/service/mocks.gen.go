@@ -116,23 +116,23 @@ func (_c *MockMetricsService_Get_Call) RunAndReturn(run func(context1 context.Co
 }
 
 // GetAll provides a mock function for the type MockMetricsService
-func (_mock *MockMetricsService) GetAll(context1 context.Context) (*map[string]any, *api.APIError) {
+func (_mock *MockMetricsService) GetAll(context1 context.Context) (map[string]any, *api.APIError) {
 	ret := _mock.Called(context1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetAll")
 	}
 
-	var r0 *map[string]any
+	var r0 map[string]any
 	var r1 *api.APIError
-	if returnFunc, ok := ret.Get(0).(func(context.Context) (*map[string]any, *api.APIError)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context) (map[string]any, *api.APIError)); ok {
 		return returnFunc(context1)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context) *map[string]any); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context) map[string]any); ok {
 		r0 = returnFunc(context1)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*map[string]any)
+			r0 = ret.Get(0).(map[string]any)
 		}
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context) *api.APIError); ok {
@@ -169,35 +169,33 @@ func (_c *MockMetricsService_GetAll_Call) Run(run func(context1 context.Context)
 	return _c
 }
 
-func (_c *MockMetricsService_GetAll_Call) Return(stringToV *map[string]any, aPIError *api.APIError) *MockMetricsService_GetAll_Call {
+func (_c *MockMetricsService_GetAll_Call) Return(stringToV map[string]any, aPIError *api.APIError) *MockMetricsService_GetAll_Call {
 	_c.Call.Return(stringToV, aPIError)
 	return _c
 }
 
-func (_c *MockMetricsService_GetAll_Call) RunAndReturn(run func(context1 context.Context) (*map[string]any, *api.APIError)) *MockMetricsService_GetAll_Call {
+func (_c *MockMetricsService_GetAll_Call) RunAndReturn(run func(context1 context.Context) (map[string]any, *api.APIError)) *MockMetricsService_GetAll_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // GetStruct provides a mock function for the type MockMetricsService
-func (_mock *MockMetricsService) GetStruct(context1 context.Context, s string, s1 string) (*models.Metrics, *api.APIError) {
+func (_mock *MockMetricsService) GetStruct(context1 context.Context, s string, s1 string) (models.Metrics, *api.APIError) {
 	ret := _mock.Called(context1, s, s1)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetStruct")
 	}
 
-	var r0 *models.Metrics
+	var r0 models.Metrics
 	var r1 *api.APIError
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (*models.Metrics, *api.APIError)); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (models.Metrics, *api.APIError)); ok {
 		return returnFunc(context1, s, s1)
 	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) *models.Metrics); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) models.Metrics); ok {
 		r0 = returnFunc(context1, s, s1)
 	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*models.Metrics)
-		}
+		r0 = ret.Get(0).(models.Metrics)
 	}
 	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string) *api.APIError); ok {
 		r1 = returnFunc(context1, s, s1)
@@ -245,12 +243,12 @@ func (_c *MockMetricsService_GetStruct_Call) Run(run func(context1 context.Conte
 	return _c
 }
 
-func (_c *MockMetricsService_GetStruct_Call) Return(metrics *models.Metrics, aPIError *api.APIError) *MockMetricsService_GetStruct_Call {
+func (_c *MockMetricsService_GetStruct_Call) Return(metrics models.Metrics, aPIError *api.APIError) *MockMetricsService_GetStruct_Call {
 	_c.Call.Return(metrics, aPIError)
 	return _c
 }
 
-func (_c *MockMetricsService_GetStruct_Call) RunAndReturn(run func(context1 context.Context, s string, s1 string) (*models.Metrics, *api.APIError)) *MockMetricsService_GetStruct_Call {
+func (_c *MockMetricsService_GetStruct_Call) RunAndReturn(run func(context1 context.Context, s string, s1 string) (models.Metrics, *api.APIError)) *MockMetricsService_GetStruct_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -327,7 +325,7 @@ func (_c *MockMetricsService_Save_Call) RunAndReturn(run func(context1 context.C
 }
 
 // SaveAll provides a mock function for the type MockMetricsService
-func (_mock *MockMetricsService) SaveAll(context1 context.Context, metricss *[]models.Metrics) *api.APIError {
+func (_mock *MockMetricsService) SaveAll(context1 context.Context, metricss []models.Metrics) *api.APIError {
 	ret := _mock.Called(context1, metricss)
 
 	if len(ret) == 0 {
@@ -335,7 +333,7 @@ func (_mock *MockMetricsService) SaveAll(context1 context.Context, metricss *[]m
 	}
 
 	var r0 *api.APIError
-	if returnFunc, ok := ret.Get(0).(func(context.Context, *[]models.Metrics) *api.APIError); ok {
+	if returnFunc, ok := ret.Get(0).(func(context.Context, []models.Metrics) *api.APIError); ok {
 		r0 = returnFunc(context1, metricss)
 	} else {
 		if ret.Get(0) != nil {
@@ -352,20 +350,20 @@ type MockMetricsService_SaveAll_Call struct {
 
 // SaveAll is a helper method to define mock.On call
 //   - context1 context.Context
-//   - metricss *[]models.Metrics
+//   - metricss []models.Metrics
 func (_e *MockMetricsService_Expecter) SaveAll(context1 interface{}, metricss interface{}) *MockMetricsService_SaveAll_Call {
 	return &MockMetricsService_SaveAll_Call{Call: _e.mock.On("SaveAll", context1, metricss)}
 }
 
-func (_c *MockMetricsService_SaveAll_Call) Run(run func(context1 context.Context, metricss *[]models.Metrics)) *MockMetricsService_SaveAll_Call {
+func (_c *MockMetricsService_SaveAll_Call) Run(run func(context1 context.Context, metricss []models.Metrics)) *MockMetricsService_SaveAll_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
-		var arg1 *[]models.Metrics
+		var arg1 []models.Metrics
 		if args[1] != nil {
-			arg1 = args[1].(*[]models.Metrics)
+			arg1 = args[1].([]models.Metrics)
 		}
 		run(
 			arg0,
@@ -380,7 +378,7 @@ func (_c *MockMetricsService_SaveAll_Call) Return(aPIError *api.APIError) *MockM
 	return _c
 }
 
-func (_c *MockMetricsService_SaveAll_Call) RunAndReturn(run func(context1 context.Context, metricss *[]models.Metrics) *api.APIError) *MockMetricsService_SaveAll_Call {
+func (_c *MockMetricsService_SaveAll_Call) RunAndReturn(run func(context1 context.Context, metricss []models.Metrics) *api.APIError) *MockMetricsService_SaveAll_Call {
 	_c.Call.Return(run)
 	return _c
 }

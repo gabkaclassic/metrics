@@ -445,19 +445,19 @@ func TestMetricsService_SaveStruct(t *testing.T) {
 func TestMetricsService_GetAll(t *testing.T) {
 	tests := []struct {
 		name          string
-		mockReturn    *map[string]any
+		mockReturn    map[string]any
 		expected      map[string]any
 		expectedError error
 	}{
 		{
 			name:          "empty repository",
-			mockReturn:    &map[string]any{},
+			mockReturn:    map[string]any{},
 			expected:      map[string]any{},
 			expectedError: nil,
 		},
 		{
 			name: "repository with metrics",
-			mockReturn: &map[string]any{
+			mockReturn: map[string]any{
 				"c1": int64(10),
 				"g1": float64(3.14),
 			},
@@ -504,7 +504,7 @@ func TestMetricsService_GetAll(t *testing.T) {
 				assert.Nil(t, result)
 			} else {
 				assert.NotNil(t, result)
-				assert.Equal(t, tt.expected, *result)
+				assert.Equal(t, tt.expected, result)
 			}
 		})
 	}
@@ -513,105 +513,105 @@ func TestMetricsService_GetAll(t *testing.T) {
 func TestMetricsService_SaveAll(t *testing.T) {
 	tests := []struct {
 		name          string
-		metrics       *[]models.Metrics
-		mockCounterFn func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics)
-		mockGaugeFn   func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics)
+		metrics       []models.Metrics
+		mockCounterFn func(repo *repository.MockMetricsRepository, metrics []models.Metrics)
+		mockGaugeFn   func(repo *repository.MockMetricsRepository, metrics []models.Metrics)
 		expectedError *api.APIError
 	}{
 		{
 			name:    "empty metrics",
-			metrics: &[]models.Metrics{},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			metrics: []models.Metrics{},
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 			},
-			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 			},
 			expectedError: nil,
 		},
 		{
 			name: "only counter metrics",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 				{ID: "c1", MType: models.Counter, Delta: intPtr(5)},
 			},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().AddAll(mock.Anything, mock.Anything).Return(nil)
 			},
-			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 			},
 			expectedError: nil,
 		},
 		{
 			name: "only gauge metrics",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 				{ID: "g2", MType: models.Gauge, Value: floatPtr(2.71)},
 			},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 			},
-			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().ResetAll(mock.Anything, mock.Anything).Return(nil)
 			},
 			expectedError: nil,
 		},
 		{
 			name: "mixed metrics",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 				{ID: "c1", MType: models.Counter, Delta: intPtr(5)},
 				{ID: "g2", MType: models.Gauge, Value: floatPtr(2.71)},
 			},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().AddAll(mock.Anything, mock.Anything).Return(nil)
 			},
-			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().ResetAll(mock.Anything, mock.Anything).Return(nil)
 			},
 			expectedError: nil,
 		},
 		{
 			name: "invalid metric type",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "unknown", MType: "unknown"},
 			},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {},
-			mockGaugeFn:   func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {},
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {},
+			mockGaugeFn:   func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {},
 			expectedError: api.BadRequest("invalid metric type: unknown"),
 		},
 		{
 			name: "counter repository error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().AddAll(mock.Anything, mock.Anything).Return(errors.New("counter error"))
 			},
-			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 			},
 			expectedError: api.Internal("save metrics error", fmt.Errorf("counters: %v, gauges: %v", errors.New("counter error"), nil)),
 		},
 		{
 			name: "gauge repository error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 			},
-			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().ResetAll(mock.Anything, mock.Anything).Return(errors.New("gauge error"))
 			},
 			expectedError: api.Internal("save metrics error", fmt.Errorf("counters: %v, gauges: %v", nil, errors.New("gauge error"))),
 		},
 		{
 			name: "both repositories error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
-			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockCounterFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().AddAll(mock.Anything, mock.Anything).Return(errors.New("counter error"))
 			},
-			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics *[]models.Metrics) {
+			mockGaugeFn: func(repo *repository.MockMetricsRepository, metrics []models.Metrics) {
 				repo.EXPECT().ResetAll(mock.Anything, mock.Anything).Return(errors.New("gauge error"))
 			},
 			expectedError: api.Internal("save metrics error", fmt.Errorf("counters: %v, gauges: %v", errors.New("counter error"), errors.New("gauge error"))),
