@@ -19,7 +19,7 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/lib/pq"
+	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
 // MemStorage provides in-memory storage for metrics.
@@ -51,26 +51,16 @@ func NewMemStorage() *MemStorage {
 //  3. Runs database migrations if configured
 //  4. Returns ready-to-use database connection
 func NewDBStorage(cfg config.DB) (*sql.DB, error) {
-	var connectionString string
-
-	if len(cfg.DSN) > 0 {
-		connectionString = cfg.DSN
-	} else {
+	if cfg.DSN == "" {
 		return nil, errors.New("DSN is required")
 	}
 
-	connection, err := sql.Open(
-		cfg.Driver,
-		connectionString,
-	)
-
+	connection, err := sql.Open("pgx", cfg.DSN)
 	if err != nil {
 		return nil, err
 	}
 
-	err = connection.Ping()
-
-	if err != nil {
+	if err = connection.Ping(); err != nil {
 		return nil, err
 	}
 

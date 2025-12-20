@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/pkg/metric"
@@ -197,12 +197,14 @@ func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []mod
 		_, err = tx.ExecContext(
 			ctx,
 			`
-            INSERT INTO metric (id, type, delta)
-            SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
-            ON CONFLICT (id) DO UPDATE 
-            SET delta = metric.delta + EXCLUDED.delta
-        ;`, pq.Array(ids), pq.Array(deltas))
-
+			INSERT INTO metric (id, type, delta)
+			SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
+			ON CONFLICT (id) DO UPDATE
+			SET delta = metric.delta + EXCLUDED.delta
+			`,
+			ids,
+			deltas,
+		)
 		if err != nil {
 			return err
 		}
@@ -267,7 +269,7 @@ func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []m
 			SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
 			ON CONFLICT (id) DO UPDATE 
 			SET value = EXCLUDED.value;
-		;`, pq.Array(ids), pq.Array(values))
+		;`, ids, values)
 
 		if err != nil {
 			return err
@@ -280,18 +282,19 @@ func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []m
 // isRetryableError determines if a database error is transient and safe to retry.
 // Checks PostgreSQL error codes for connection issues, deadlocks, and serialization failures.
 func isRetryableError(err error) bool {
-	if pqErr, ok := err.(*pq.Error); ok {
-		switch pqErr.Code {
-		case "08000", // connection_exception
-			"08003", // connection_does_not_exist
-			"08006", // connection_failure
-			"08001", // sqlclient_unable_to_establish_sqlconnection
-			"08004", // sqlserver_rejected_establishment_of_sqlconnection
-			"08007", // transaction_resolution_unknown
-			"40001", // serialization_failure
-			"40P01", // deadlock_detected
-			"55006", // object_in_use
-			"55P03": // lock_not_available
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "08000",
+			"08003",
+			"08006",
+			"08001",
+			"08004",
+			"08007",
+			"40001",
+			"40P01",
+			"55006",
+			"55P03":
 			return true
 		}
 	}
