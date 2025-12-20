@@ -74,7 +74,7 @@ type (
 	// Serialized as JSON for both file and HTTP handlers.
 	event struct {
 		// Ts is the Unix timestamp of the audited operation.
-		Ts int64 `json:"ts"`
+		TS int64 `json:"ts"`
 
 		// Metrics contains the IDs of all metrics involved in the operation.
 		Metrics []string `json:"metrics"`
@@ -196,7 +196,7 @@ func (a *auditor) AuditMany(metrics []models.Metrics, timestamp int64, ip string
 	}
 
 	e := event{
-		Ts:        timestamp,
+		TS:        timestamp,
 		Metrics:   getMetricsNames(metrics),
 		IPAddress: ip,
 	}
