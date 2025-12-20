@@ -249,7 +249,6 @@ func TestGetMetricsNames(t *testing.T) {
 		})
 	}
 }
-
 func TestFileHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -261,7 +260,7 @@ func TestFileHandler_Handle(t *testing.T) {
 			name:  "single write",
 			calls: 1,
 			event: event{
-				TS:        1,
+				Ts:        1,
 				Metrics:   []string{"m1", "m2"},
 				IPAddress: "127.0.0.1",
 			},
@@ -271,7 +270,7 @@ func TestFileHandler_Handle(t *testing.T) {
 			name:  "concurrent writes",
 			calls: 10,
 			event: event{
-				TS:        2,
+				Ts:        2,
 				Metrics:   []string{"m"},
 				IPAddress: "ip",
 			},
@@ -288,20 +287,25 @@ func TestFileHandler_Handle(t *testing.T) {
 			defer f.Close()
 
 			h, err := newFileHandler(tmp)
-
 			assert.NoError(t, err)
 
 			var wg sync.WaitGroup
+			errCh := make(chan error, tt.calls)
 
 			for i := 0; i < tt.calls; i++ {
 				wg.Add(1)
 				go func() {
 					defer wg.Done()
-					h.handle(tt.event)
+					errCh <- h.handle(tt.event)
 				}()
 			}
 
 			wg.Wait()
+			close(errCh)
+
+			for err := range errCh {
+				assert.NoError(t, err)
+			}
 
 			data, err := os.ReadFile(tmp)
 			assert.NoError(t, err)
@@ -314,7 +318,7 @@ func TestFileHandler_Handle(t *testing.T) {
 				err = json.Unmarshal([]byte(line), &got)
 				assert.NoError(t, err)
 
-				assert.Equal(t, tt.event.TS, got.TS)
+				assert.Equal(t, tt.event.Ts, got.Ts)
 				assert.Equal(t, tt.event.Metrics, got.Metrics)
 				assert.Equal(t, tt.event.IPAddress, got.IPAddress)
 			}
@@ -326,28 +330,25 @@ func TestURLHandler_Handle(t *testing.T) {
 	tests := []struct {
 		name        string
 		status      int
-		expectCalls int
+		expectError bool
 	}{
 		{
 			name:        "success response",
 			status:      http.StatusOK,
-			expectCalls: 1,
+			expectError: false,
 		},
 		{
 			name:        "not 200 response",
 			status:      http.StatusInternalServerError,
-			expectCalls: 4,
+			expectError: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var calls int
 			var received event
 
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
-
 				body, err := io.ReadAll(r.Body)
 				assert.NoError(t, err)
 
@@ -371,20 +372,22 @@ func TestURLHandler_Handle(t *testing.T) {
 			}
 
 			e := event{
-				TS:        123,
+				Ts:        123,
 				Metrics:   []string{"m1", "m2"},
 				IPAddress: "127.0.0.1",
 			}
 
-			assert.NotPanics(t, func() {
-				h.handle(e)
-			})
+			err := h.handle(e)
 
-			if tt.status == http.StatusOK {
-				assert.Equal(t, e.TS, received.TS)
-				assert.Equal(t, e.Metrics, received.Metrics)
-				assert.Equal(t, e.IPAddress, received.IPAddress)
+			if tt.expectError {
+				assert.Error(t, err)
+				return
 			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, e.Ts, received.Ts)
+			assert.Equal(t, e.Metrics, received.Metrics)
+			assert.Equal(t, e.IPAddress, received.IPAddress)
 		})
 	}
 }

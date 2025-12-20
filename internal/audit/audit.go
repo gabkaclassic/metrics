@@ -34,8 +34,8 @@ type (
 	// Implementations define how audit events are processed and stored
 	handler interface {
 		// handle processes a single audit event.
-		// Implementations should be thread-safe and handle errors gracefully.
-		handle(event)
+		// Implementations should be thread-safe and return error.
+		handle(event) error
 	}
 	// fileHandler implements handler interface for file-based audit logging.
 	// Writes audit events as JSON lines to a specified file.
@@ -73,8 +73,8 @@ type (
 	// event represents a single audit event to be logged.
 	// Serialized as JSON for both file and HTTP handlers.
 	event struct {
-		// TS is the Unix timestamp of the audited operation.
-		TS int64 `json:"ts"`
+		// Ts is the Unix timestamp of the audited operation.
+		Ts int64 `json:"ts"`
 
 		// Metrics contains the IDs of all metrics involved in the operation.
 		Metrics []string `json:"metrics"`
@@ -176,15 +176,19 @@ func (a *auditor) AuditOne(metric models.Metrics, timestamp int64, ip string) {
 	a.AuditMany(metrics, timestamp, ip)
 }
 
-// AuditMany logs multiple metrics operations to all configured handlers.
-// Operates asynchronously - returns immediately without waiting for handlers.
-// If no handlers are configured, the operation is a no-op.
+// AuditMany logs multiple metric operations using all configured audit handlers.
 //
-// The method:
-//  1. Creates an audit event from the provided data
-//  2. Distributes the event to all handlers in parallel goroutines
-//  3. Returns immediately (fire-and-forget)
-//  4. Handlers process events asynchronously with their own error handling
+// The method is asynchronous (fire-and-forget):
+//   - returns immediately
+//   - handler execution happens in background goroutines
+//
+// Behavior:
+//  1. Builds a single audit event from input data
+//  2. Dispatches the event to all handlers concurrently
+//  3. Collects and logs handler errors internally
+//  4. Does not propagate errors to the caller
+//
+// If no handlers are configured, the method is a no-op.
 func (a *auditor) AuditMany(metrics []models.Metrics, timestamp int64, ip string) {
 
 	if len(a.handlers) == 0 {
@@ -192,96 +196,100 @@ func (a *auditor) AuditMany(metrics []models.Metrics, timestamp int64, ip string
 	}
 
 	e := event{
-		TS:        timestamp,
+		Ts:        timestamp,
 		Metrics:   getMetricsNames(metrics),
 		IPAddress: ip,
 	}
 
-	var wg sync.WaitGroup
-
-	for _, hndlr := range a.handlers {
-		wg.Add(1)
-		go func(h handler) {
-			defer wg.Done()
-			h.handle(e)
-		}(hndlr)
-	}
-
 	go func() {
+		var wg sync.WaitGroup
+
+		for _, hndlr := range a.handlers {
+			wg.Add(1)
+
+			go func(h handler) {
+				defer wg.Done()
+
+				if err := h.handle(e); err != nil {
+					slog.Error(
+						"audit handler error",
+						slog.Any("error", err),
+						slog.String("handler", fmt.Sprintf("%T", h)),
+					)
+				}
+			}(hndlr)
+		}
+
 		wg.Wait()
 	}()
 }
 
-// handle processes an audit event by writing it to a file.
-// Implements thread-safe file writing with immediate sync to disk.
-// Each event is written as a JSON line followed by newline.
-// Errors are logged but not propagated to maintain operation continuity.
-func (h fileHandler) handle(e event) {
-	marshalledData, err := json.Marshal(e)
-
+// handle writes an audit event to a file as a single JSON line.
+//
+// Guarantees:
+//   - thread-safe write
+//   - immediate fsync
+//
+// Returns:
+//   - error if marshalling, writing or syncing fails
+func (h fileHandler) handle(e event) error {
+	data, err := json.Marshal(e)
 	if err != nil {
-		slog.Error("Marshall data error", slog.String("error", err.Error()))
-		return
+		return fmt.Errorf("marshal audit event: %w", err)
 	}
 
-	marshalledData = append(marshalledData, '\n')
+	data = append(data, '\n')
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	_, err = h.file.Write(marshalledData)
-	if err != nil {
-		slog.Error("Write to file error", slog.String("error", err.Error()))
-		return
+	if _, err = h.file.Write(data); err != nil {
+		return fmt.Errorf("write audit event: %w", err)
 	}
 
-	err = h.file.Sync()
-	if err != nil {
-		slog.Error("File sync error", slog.String("error", err.Error()))
-		return
+	if err = h.file.Sync(); err != nil {
+		return fmt.Errorf("sync audit file: %w", err)
 	}
+
+	return nil
 }
 
-// handle processes an audit event by sending it to a remote HTTP endpoint.
-// Sends event as JSON in POST request body.
-// Validates HTTP response status and logs errors.
-// Errors are logged but not propagated to maintain operation continuity.
-func (h urlHandler) handle(e event) {
-	marshalledData, err := json.Marshal(e)
-
+// handle sends an audit event to a remote HTTP endpoint.
+//
+// The event is sent as JSON via POST request.
+// A non-200 HTTP response is treated as an error.
+//
+// Returns:
+//   - error if request creation, sending, or response validation fails
+func (h urlHandler) handle(e event) error {
+	data, err := json.Marshal(e)
 	if err != nil {
-		slog.Error("Marshall data error", slog.String("error", err.Error()))
-		return
+		return fmt.Errorf("marshal audit event: %w", err)
 	}
-
-	body := bytes.NewReader(marshalledData)
 
 	resp, err := h.client.Post("", &httpclient.RequestOptions{
-		Body: body,
+		Body: bytes.NewReader(data),
 	})
-
 	if err != nil {
-		slog.Error("Audit URL handle error", slog.Any("error", err))
-		return
+		return fmt.Errorf("send audit request: %w", err)
 	}
-
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.Error("Audit URL handle HTTP error", slog.Int("status", resp.StatusCode))
-		return
+		return fmt.Errorf("unexpected audit response status: %d", resp.StatusCode)
 	}
 
-	responseBody, err := io.ReadAll(resp.Body)
-
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		slog.Error("Audit URL handle error: read response body error", slog.Any("error", err))
-		return
+		return fmt.Errorf("read audit response body: %w", err)
 	}
 
-	slog.Debug("URL audit completed successfully",
-		slog.String("response", string(responseBody)),
+	slog.Debug(
+		"URL audit completed successfully",
+		slog.String("response", string(body)),
 	)
+
+	return nil
 }
 
 // getMetricsNames extracts metric IDs from a slice of metrics.
