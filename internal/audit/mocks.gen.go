@@ -37,9 +37,20 @@ func (_m *mockhandler) EXPECT() *mockhandler_Expecter {
 }
 
 // handle provides a mock function for the type mockhandler
-func (_mock *mockhandler) handle(eventMoqParam event) {
-	_mock.Called(eventMoqParam)
-	return
+func (_mock *mockhandler) handle(eventMoqParam event) error {
+	ret := _mock.Called(eventMoqParam)
+
+	if len(ret) == 0 {
+		panic("no return value specified for handle")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(event) error); ok {
+		r0 = returnFunc(eventMoqParam)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
 }
 
 // mockhandler_handle_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'handle'
@@ -66,13 +77,13 @@ func (_c *mockhandler_handle_Call) Run(run func(eventMoqParam event)) *mockhandl
 	return _c
 }
 
-func (_c *mockhandler_handle_Call) Return() *mockhandler_handle_Call {
-	_c.Call.Return()
+func (_c *mockhandler_handle_Call) Return(err error) *mockhandler_handle_Call {
+	_c.Call.Return(err)
 	return _c
 }
 
-func (_c *mockhandler_handle_Call) RunAndReturn(run func(eventMoqParam event)) *mockhandler_handle_Call {
-	_c.Run(run)
+func (_c *mockhandler_handle_Call) RunAndReturn(run func(eventMoqParam event) error) *mockhandler_handle_Call {
+	_c.Call.Return(run)
 	return _c
 }
 
