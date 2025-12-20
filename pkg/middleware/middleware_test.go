@@ -451,7 +451,7 @@ func TestAuditIPFromCtx(t *testing.T) {
 	}
 }
 
-func TestAuditTsFromCtx(t *testing.T) {
+func TestAuditTSFromCtx(t *testing.T) {
 	tests := []struct {
 		name     string
 		ctx      context.Context
@@ -486,7 +486,7 @@ func TestAuditTsFromCtx(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := AuditTsFromCtx(tt.ctx)
+			result := AuditTSFromCtx(tt.ctx)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

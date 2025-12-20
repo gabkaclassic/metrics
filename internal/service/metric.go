@@ -83,7 +83,7 @@ func NewMetricsService(repository repository.MetricsRepository, auditor audit.Au
 // notifyOne logs a single metric operation to the audit system.
 // Extracts timestamp and IP from context and records asynchronously.
 func (service *metricsService) notifyOne(ctx context.Context, metric models.Metrics) {
-	ts := middleware.AuditTsFromCtx(ctx)
+	ts := middleware.AuditTSFromCtx(ctx)
 
 	if ts == 0 {
 		slog.Error("Get audit timestamp from request context error")
@@ -108,7 +108,7 @@ func (service *metricsService) notifyMany(ctx context.Context, metrics []models.
 		return
 	}
 
-	ts := middleware.AuditTsFromCtx(ctx)
+	ts := middleware.AuditTSFromCtx(ctx)
 
 	if ts == 0 {
 		slog.Error("Get audit timestamp from request context error")

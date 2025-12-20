@@ -261,7 +261,7 @@ func TestFileHandler_Handle(t *testing.T) {
 			name:  "single write",
 			calls: 1,
 			event: event{
-				Ts:        1,
+				TS:        1,
 				Metrics:   []string{"m1", "m2"},
 				IPAddress: "127.0.0.1",
 			},
@@ -271,7 +271,7 @@ func TestFileHandler_Handle(t *testing.T) {
 			name:  "concurrent writes",
 			calls: 10,
 			event: event{
-				Ts:        2,
+				TS:        2,
 				Metrics:   []string{"m"},
 				IPAddress: "ip",
 			},
@@ -314,7 +314,7 @@ func TestFileHandler_Handle(t *testing.T) {
 				err = json.Unmarshal([]byte(line), &got)
 				assert.NoError(t, err)
 
-				assert.Equal(t, tt.event.Ts, got.Ts)
+				assert.Equal(t, tt.event.TS, got.TS)
 				assert.Equal(t, tt.event.Metrics, got.Metrics)
 				assert.Equal(t, tt.event.IPAddress, got.IPAddress)
 			}
@@ -371,7 +371,7 @@ func TestURLHandler_Handle(t *testing.T) {
 			}
 
 			e := event{
-				Ts:        123,
+				TS:        123,
 				Metrics:   []string{"m1", "m2"},
 				IPAddress: "127.0.0.1",
 			}
@@ -381,7 +381,7 @@ func TestURLHandler_Handle(t *testing.T) {
 			})
 
 			if tt.status == http.StatusOK {
-				assert.Equal(t, e.Ts, received.Ts)
+				assert.Equal(t, e.TS, received.TS)
 				assert.Equal(t, e.Metrics, received.Metrics)
 				assert.Equal(t, e.IPAddress, received.IPAddress)
 			}

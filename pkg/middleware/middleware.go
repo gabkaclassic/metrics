@@ -290,10 +290,10 @@ func AuditIPFromCtx(ctx context.Context) string {
 	return ""
 }
 
-// AuditTsFromCtx extracts the audit timestamp from context.
+// AuditTSFromCtx extracts the audit timestamp from context.
 //
 // Returns zero if the value is not present.
-func AuditTsFromCtx(ctx context.Context) int64 {
+func AuditTSFromCtx(ctx context.Context) int64 {
 	if v, ok := ctx.Value(ctxTSKey).(int64); ok {
 		return v
 	}
