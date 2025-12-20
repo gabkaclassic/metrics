@@ -97,7 +97,7 @@ func ParseServerConfig() (*Server, error) {
 	logJSON := flag.Bool("log-json", cfg.Log.JSON, "Enable JSON output for logs")
 
 	storeInterval := flag.Uint("i", uint(cfg.Dump.StoreInterval.Seconds()), "Store interval")
-	fileStoragePath := flag.String("f", cfg.Dump.FileStoragePath, "File storate path")
+	fileStoragePath := flag.String("f", cfg.Dump.FileStoragePath, "File storage path")
 	restore := flag.Bool("r", cfg.Dump.Restore, "Restore need")
 
 	dbDSN := flag.String("d", cfg.DB.DSN, "DSN")
