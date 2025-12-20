@@ -9,16 +9,19 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/gabkaclassic/metrics/internal/config"
 	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -42,7 +45,7 @@ func NewMemStorage() *MemStorage {
 // cfg: Database configuration containing DSN, driver, and migration settings.
 //
 // Returns:
-//   - *sql.DB: Established database connection
+//   - *pgxpool.Pool: Established database pool of connections
 //   - error: Connection or migration failure details
 //
 // The function:
@@ -50,26 +53,26 @@ func NewMemStorage() *MemStorage {
 //  2. Opens and verifies database connection
 //  3. Runs database migrations if configured
 //  4. Returns ready-to-use database connection
-func NewDBStorage(cfg config.DB) (*sql.DB, error) {
+func NewDBStorage(ctx context.Context, cfg config.DB) (DB, error) {
 	if cfg.DSN == "" {
 		return nil, errors.New("DSN is required")
 	}
 
-	connection, err := sql.Open("pgx", cfg.DSN)
+	pool, err := pgxpool.New(ctx, cfg.DSN)
 	if err != nil {
 		return nil, err
 	}
 
-	if err = connection.Ping(); err != nil {
+	if err = pool.Ping(context.Background()); err != nil {
+		pool.Close()
 		return nil, err
 	}
 
-	if err := runMigrations(connection, cfg); err != nil {
-		connection.Close()
+	if err := runMigrations(cfg); err != nil {
+		pool.Close()
 		return nil, fmt.Errorf("migrations failed: %w", err)
 	}
-
-	return connection, nil
+	return pool, nil
 }
 
 // runMigrations executes database migrations for PostgreSQL.
@@ -85,17 +88,25 @@ func NewDBStorage(cfg config.DB) (*sql.DB, error) {
 //   - Uses file-based migrations from specified directory
 //   - Only applies pending migrations (idempotent)
 //   - Logs successful migration completion
-func runMigrations(db *sql.DB, cfg config.DB) error {
+func runMigrations(cfg config.DB) error {
+	if cfg.MigrationsPath == "" {
+		return nil
+	}
+
+	db, err := sql.Open("pgx", cfg.DSN)
+	if err != nil {
+		return fmt.Errorf("failed to open db for migrations: %w", err)
+	}
+	defer db.Close()
+
 	driver, err := postgres.WithInstance(db, &postgres.Config{})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create migrate driver: %w", err)
 	}
 
 	migrationsPath := "file://migrations"
 	if cfg.MigrationsPath != "" {
 		migrationsPath = "file://" + cfg.MigrationsPath
-	} else {
-		return nil
 	}
 
 	m, err := migrate.NewWithDatabaseInstance(
@@ -104,14 +115,20 @@ func runMigrations(db *sql.DB, cfg config.DB) error {
 		driver,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create migrate instance: %w", err)
 	}
 
-	err = m.Up()
-	if err != nil && err != migrate.ErrNoChange {
-		return err
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
+		return fmt.Errorf("migration failed: %w", err)
 	}
-	slog.Info("Migrations finished", slog.String("filepath", migrationsPath))
 
 	return nil
+}
+
+type DB interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Close()
 }

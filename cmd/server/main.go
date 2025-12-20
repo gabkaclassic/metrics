@@ -43,12 +43,15 @@ func run() error {
 	}
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	var metricsRepository repository.MetricsRepository
 	var dumper *dump.Dumper
 	var dumperEnabled bool
 
 	if len(cfg.DB.DSN) > 0 {
-		storage, err := storage.NewDBStorage(cfg.DB)
+		storage, err := storage.NewDBStorage(ctx, cfg.DB)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database storage: %w", err)
 		}
@@ -96,9 +99,6 @@ func run() error {
 		httpserver.Address(cfg.Address),
 		httpserver.Handler(&router),
 	)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	if dumperEnabled {
 		go dumper.StartDumper(ctx, cfg.Dump)

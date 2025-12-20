@@ -8,8 +8,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/internal/storage"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 )
 
@@ -25,7 +27,7 @@ const (
 // dbMetricsRepository implements MetricsRepository using PostgreSQL database.
 // Provides persistent storage with ACID compliance and transaction support.
 type dbMetricsRepository struct {
-	storage *sql.DB
+	storage storage.DB
 }
 
 // NewDBMetricsRepository creates a new PostgreSQL-based metrics repository.
@@ -37,13 +39,13 @@ type dbMetricsRepository struct {
 //   - error: If storage connection is nil
 //
 // The repository automatically retries operations on transient database errors.
-func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
-	if storage == nil {
+func NewDBMetricsRepository(s storage.DB) (MetricsRepository, error) {
+	if s == nil {
 		return nil, errors.New("create new metrics repository failed: storage is nil")
 	}
 
 	return &dbMetricsRepository{
-		storage: storage,
+		storage: s,
 	}, nil
 }
 
@@ -52,15 +54,25 @@ func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
 func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	metrics := make([]models.Metrics, 0)
 	err := repository.executeWithRetry(func() error {
-		rows, err := repository.storage.QueryContext(ctx, "SELECT id, type, delta, value FROM metric;")
+		rows, err := repository.storage.Query(ctx, "SELECT id, type, delta, value FROM metric;")
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var m models.Metrics
-			if err = rows.Scan(&m.ID, &m.MType, &m.Delta, &m.Value); err != nil {
+			var delta pgtype.Int8
+			var value pgtype.Float8
+			if err = rows.Scan(&m.ID, &m.MType, &delta, &value); err != nil {
 				return err
+			}
+			switch m.MType {
+			case string(metric.CounterType):
+				m.Delta = &delta.Int64
+			case string(metric.GaugeType):
+				m.Value = &value.Float64
+			default:
+				return fmt.Errorf("invalid metric type: %s", m.MType)
 			}
 			metrics = append(metrics, m)
 		}
@@ -84,7 +96,7 @@ func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) ([]mod
 func (repository *dbMetricsRepository) GetAll(ctx context.Context) (map[string]any, error) {
 	var metrics map[string]any
 	err := repository.executeWithRetry(func() error {
-		rows, err := repository.storage.QueryContext(ctx, "SELECT id, type, delta, value FROM metric;")
+		rows, err := repository.storage.Query(ctx, "SELECT id, type, delta, value FROM metric;")
 		if err != nil {
 			return err
 		}
@@ -93,14 +105,19 @@ func (repository *dbMetricsRepository) GetAll(ctx context.Context) (map[string]a
 		currentMetrics := make(map[string]any)
 		for rows.Next() {
 			var m models.Metrics
-			if err = rows.Scan(&m.ID, &m.MType, &m.Delta, &m.Value); err != nil {
+			var delta pgtype.Int8
+			var value pgtype.Float8
+
+			if err = rows.Scan(&m.ID, &m.MType, &delta, &value); err != nil {
 				return err
 			}
 			switch m.MType {
 			case string(metric.CounterType):
-				currentMetrics[m.ID] = *m.Delta
+				currentMetrics[m.ID] = delta.Int64
 			case string(metric.GaugeType):
-				currentMetrics[m.ID] = *m.Value
+				currentMetrics[m.ID] = value.Float64
+			default:
+				return fmt.Errorf("invalid metric type: %s", m.MType)
 			}
 		}
 
@@ -121,15 +138,17 @@ func (repository *dbMetricsRepository) GetAll(ctx context.Context) (map[string]a
 // Get retrieves a single metric by its ID from the database.
 // Returns sql.ErrNoRows wrapped in a descriptive error if metric not found.
 func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string) (*models.Metrics, error) {
-	var metric models.Metrics
+	var result models.Metrics
 	err := repository.executeWithRetry(func() error {
 		m := models.Metrics{}
-		err := repository.storage.QueryRowContext(
+		var delta pgtype.Int8
+		var value pgtype.Float8
+		err := repository.storage.QueryRow(
 			ctx,
 			"SELECT id, type, delta, value FROM metric WHERE id = $1",
 			metricID,
 		).
-			Scan(&m.ID, &m.MType, &m.Delta, &m.Value)
+			Scan(&m.ID, &m.MType, &delta, &value)
 
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -137,14 +156,22 @@ func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string)
 			}
 			return err
 		}
-		metric = m
+		switch m.MType {
+		case string(metric.CounterType):
+			m.Delta = &delta.Int64
+		case string(metric.GaugeType):
+			m.Value = &value.Float64
+		default:
+			return fmt.Errorf("invalid metric type: %s", m.MType)
+		}
+		result = m
 		return nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
-	return &metric, nil
+	return &result, nil
 }
 
 // Add increments a counter metric in the database.
@@ -152,13 +179,13 @@ func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string)
 // Executes within a transaction with automatic rollback on error.
 func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.BeginTx(ctx, nil)
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
-		_, err = tx.ExecContext(
+		_, err = tx.Exec(
 			ctx,
 			`INSERT INTO metric (id, type, delta)
             VALUES ($1, 'counter', $2)
@@ -171,7 +198,7 @@ func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Me
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
@@ -180,11 +207,11 @@ func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Me
 // More performant than multiple individual Add calls.
 func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.BeginTx(ctx, nil)
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
 		ids := make([]string, len(metrics))
 		deltas := make([]int64, len(metrics))
@@ -194,7 +221,7 @@ func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []mod
 			deltas[i] = *metric.Delta
 		}
 
-		_, err = tx.ExecContext(
+		_, err = tx.Exec(
 			ctx,
 			`
 			INSERT INTO metric (id, type, delta)
@@ -209,7 +236,7 @@ func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []mod
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
@@ -218,14 +245,14 @@ func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []mod
 // Executes within a transaction with automatic rollback on error.
 func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.BeginTx(ctx, nil)
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
 
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
-		_, err = tx.ExecContext(
+		_, err = tx.Exec(
 			ctx,
 			`INSERT INTO metric (id, type, value)
 			VALUES ($1, 'gauge', $2)
@@ -238,7 +265,7 @@ func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
@@ -247,12 +274,12 @@ func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.
 // Updates existing values or inserts new metrics in a single operation.
 func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.BeginTx(ctx, nil)
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
 
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
 		ids := make([]string, len(metrics))
 		values := make([]float64, len(metrics))
@@ -262,7 +289,7 @@ func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []m
 			values[i] = *metric.Value
 		}
 
-		_, err = tx.ExecContext(
+		_, err = tx.Exec(
 			ctx,
 			`
 			INSERT INTO metric (id, type, value)
@@ -275,7 +302,7 @@ func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []m
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
