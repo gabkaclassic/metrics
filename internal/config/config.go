@@ -1,3 +1,16 @@
+// Package config provides configuration loading for server and agent applications.
+//
+// The package supports configuration via environment variables and command-line flags,
+// with environment variables used as defaults and flags taking precedence if provided.
+//
+// Configuration is parsed using github.com/caarlos0/env for environment variables
+// and the standard flag package for CLI arguments.
+//
+// Custom parsers are defined for types such as time.Duration to allow concise
+// numeric configuration (values are interpreted as seconds).
+//
+// The package exposes separate parsing functions for server-side and agent-side
+// configuration to keep concerns isolated.
 package config
 
 import (
@@ -12,6 +25,7 @@ import (
 )
 
 type (
+	// Server represents the full configuration of the metrics server.
 	Server struct {
 		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
 		SignKey string `env:"KEY"`
@@ -20,11 +34,7 @@ type (
 		DB      DB
 		Audit   Audit
 	}
-	DB struct {
-		Driver         string `env:"DB_DRIVER" envDefault:"postgres"`
-		DSN            string `env:"DATABASE_DSN"`
-		MigrationsPath string `env:"DB_MIGRATIONS_PATH" envDefault:"./migrations"`
-	}
+	// Agent represents the configuration of the metrics agent.
 	Agent struct {
 		PollInterval   time.Duration `env:"POLL_INTERVAL" envDefault:"2"`
 		ReportInterval time.Duration `env:"REPORT_INTERVAL" envDefault:"10"`
@@ -35,28 +45,41 @@ type (
 		RateLimit      int    `env:"RATE_LIMIT" envDefault:"5"`
 		BatchSize      int    `env:"BATCH_SIZE" envDefault:"100"`
 	}
+	// DB contains database-related configuration.
+	DB struct {
+		Driver         string `env:"DB_DRIVER" envDefault:"postgres"`
+		DSN            string `env:"DATABASE_DSN"`
+		MigrationsPath string `env:"DB_MIGRATIONS_PATH" envDefault:"./migrations"`
+	}
+	// Client contains HTTP client configuration used by the agent
+	// to communicate with the server.
 	Client struct {
 		BaseURL string        `env:"ADDRESS" envDefault:"localhost:8080"`
 		Timeout time.Duration `env:"TIMEOUT" envDefault:"3"`
 		Retries int           `env:"RETRIES" envDefault:"3"`
 	}
+	// Log defines logging configuration shared between server and agent.
 	Log struct {
 		Level   string `env:"LOG_LEVEL" envDefault:"info"`
 		File    string `env:"LOG_FILE"`
 		Console bool   `env:"LOG_CONSOLE" envDefault:"false"`
 		JSON    bool   `env:"LOG_JSON" envDefault:"true"`
 	}
+	// Dump defines configuration for periodic metrics persistence to disk.
 	Dump struct {
 		StoreInterval   time.Duration `env:"STORE_INTERVAL" envDefault:"300"`
 		FileStoragePath string        `env:"FILE_STORAGE_PATH" envDefault:"/tmp/metrics_dumps/dump.json"`
 		Restore         bool          `env:"RESTORE" envDefault:"false"`
 	}
+	// Audit defines configuration for audit logging destinations.
 	Audit struct {
 		File string `env:"AUDIT_FILE"`
 		URL  string `env:"AUDIT_URL"`
 	}
 )
 
+// ensureURL normalizes an address string into a valid URL.
+// If the scheme is missing, "http://" is prepended.
 func ensureURL(addr string) string {
 	if !strings.Contains(addr, "://") {
 		addr = "http://" + addr
@@ -80,6 +103,17 @@ func defineEnvParsers() map[reflect.Type]env.ParserFunc {
 	}
 }
 
+// ParseServerConfig parses and returns server configuration.
+//
+// Configuration values are loaded from environment variables first,
+// then overridden by command-line flags if provided.
+//
+// Supported sources:
+//   - Environment variables (via caarlos0/env)
+//   - Command-line flags (highest priority)
+//
+// The function returns a fully populated Server configuration
+// or an error if parsing fails.
 func ParseServerConfig() (*Server, error) {
 	var cfg Server
 
@@ -152,6 +186,15 @@ func ParseServerConfig() (*Server, error) {
 	return &cfg, nil
 }
 
+// ParseAgentConfig parses and returns agent configuration.
+//
+// Configuration values are loaded from environment variables first,
+// then overridden by command-line flags if provided.
+//
+// The agent client BaseURL is normalized to ensure a valid URL scheme.
+//
+// The function returns a fully populated Agent configuration
+// or an error if parsing fails.
 func ParseAgentConfig() (*Agent, error) {
 	var cfg Agent
 
