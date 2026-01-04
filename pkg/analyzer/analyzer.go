@@ -1,3 +1,13 @@
+// Package analyzer provides static analysis checks for detecting
+// unsafe process-terminating constructs in Go code.
+//
+// The analyzer reports:
+//   - usage of the builtin panic function
+//   - calls to os.Exit outside the main package
+//   - calls to log.Fatal outside the main package
+//
+// Intended to be used as a SAST rule to discourage abrupt termination
+// of program execution in library and non-entrypoint code.
 package analyzer
 
 import (
@@ -7,12 +17,29 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
+// InterruptCheckAnalyzer reports usages of panic, os.Exit, and log.Fatal
+// according to the following rules:
+//
+//   - builtin panic is always reported
+//   - os.Exit is reported if used outside package main
+//   - log.Fatal is reported if used outside package main
+//
+// The analyzer relies on go/types information to accurately distinguish
+// builtin functions and imported package symbols.
 var InterruptCheckAnalyzer = &analysis.Analyzer{
+
 	Name: "interruptCheck",
 	Doc:  "check using panic or exit function, fatal logs",
 	Run:  runAnalyzer,
 }
 
+// runAnalyzer walks through all AST files in the analyzed package,
+// inspects function call expressions, and reports diagnostics
+// when forbidden interrupting constructs are detected.
+//
+// It uses type information from analysis.Pass to:
+//   - identify builtin functions (panic)
+//   - resolve selector expressions to concrete package functions
 func runAnalyzer(pass *analysis.Pass) (any, error) {
 
 	for _, f := range pass.Files {
