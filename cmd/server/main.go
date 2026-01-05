@@ -22,6 +22,12 @@ import (
 	"github.com/gabkaclassic/metrics/pkg/logger"
 )
 
+var (
+	buildVersion string
+	buildDate    string
+	buildCommit  string
+)
+
 // @title Metrics Service API
 // @version 1.0
 // @description HTTP API for collecting and retrieving gauge and counter metrics.
@@ -30,10 +36,27 @@ import (
 // @license.name MIT
 // @BasePath /
 func main() {
+	printTags()
 
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func printTags() {
+	if buildVersion == "" {
+		buildVersion = "N/A"
+	}
+	if buildDate == "" {
+		buildDate = "N/A"
+	}
+	if buildCommit == "" {
+		buildCommit = "N/A"
+	}
+
+	fmt.Printf("Build version: %s\n", buildVersion)
+	fmt.Printf("Build date: %s\n", buildDate)
+	fmt.Printf("Build commit: %s\n", buildCommit)
 }
 
 func run() error {
