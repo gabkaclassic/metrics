@@ -26,7 +26,7 @@ const (
 
 // dbMetricsRepository implements MetricsRepository using PostgreSQL database.
 // Provides persistent storage with ACID compliance and transaction support.
-// generate:reset
+
 type dbMetricsRepository struct {
 	storage storage.DB
 }

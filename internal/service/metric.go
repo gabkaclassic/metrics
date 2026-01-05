@@ -24,7 +24,7 @@ import (
 
 // MetricsService defines the interface for metric business operations.
 // Handles validation, processing, and coordinates repository and audit systems.
-// generate:reset
+
 type MetricsService interface {
 	// Get retrieves a metric value by ID and type.
 	// Returns the raw value (int64 for counters, float64 for gauges).
@@ -53,7 +53,7 @@ type MetricsService interface {
 
 // metricsService implements MetricsService with repository and audit integration.
 // Provides thread-safe operations through repository synchronization.
-// generate:reset
+
 type metricsService struct {
 	repository repository.MetricsRepository
 	auditor    audit.Auditor
