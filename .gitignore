@@ -27,3 +27,5 @@ metricstest
 build
 
 *.log
+
+audit

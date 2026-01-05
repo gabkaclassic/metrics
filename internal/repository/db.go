@@ -1,48 +1,78 @@
 package repository
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/lib/pq"
 	"time"
 
-	"github.com/gabkaclassic/metrics/internal/model"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/internal/storage"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 )
 
 const (
-	retriesAmount int           = 3
-	retryDelay    time.Duration = 1 * time.Second
+	// retriesAmount defines the maximum number of retry attempts for database operations.
+	retriesAmount int = 3
+
+	// retryDelay defines the initial delay between retry attempts.
+	// Uses exponential backoff: delay doubles after each retry.
+	retryDelay time.Duration = 1 * time.Second
 )
 
+// dbMetricsRepository implements MetricsRepository using PostgreSQL database.
+// Provides persistent storage with ACID compliance and transaction support.
 type dbMetricsRepository struct {
-	storage *sql.DB
+	storage storage.DB
 }
 
-func NewDBMetricsRepository(storage *sql.DB) (MetricsRepository, error) {
-
-	if storage == nil {
+// NewDBMetricsRepository creates a new PostgreSQL-based metrics repository.
+//
+// storage: Established SQL database connection (typically PostgreSQL)
+//
+// Returns:
+//   - MetricsRepository: Ready-to-use repository instance
+//   - error: If storage connection is nil
+//
+// The repository automatically retries operations on transient database errors.
+func NewDBMetricsRepository(s storage.DB) (MetricsRepository, error) {
+	if s == nil {
 		return nil, errors.New("create new metrics repository failed: storage is nil")
 	}
 
 	return &dbMetricsRepository{
-		storage: storage,
+		storage: s,
 	}, nil
 }
 
-func (repository *dbMetricsRepository) GetAllMetrics() (*[]models.Metrics, error) {
+// GetAllMetrics retrieves all metrics from the database.
+// Returns metrics in their complete structure including type and values.
+func (repository *dbMetricsRepository) GetAllMetrics(ctx context.Context) ([]models.Metrics, error) {
 	metrics := make([]models.Metrics, 0)
 	err := repository.executeWithRetry(func() error {
-		rows, err := repository.storage.Query("SELECT id, type, delta, value FROM metric;")
+		rows, err := repository.storage.Query(ctx, "SELECT id, type, delta, value FROM metric;")
 		if err != nil {
 			return err
 		}
 		defer rows.Close()
 		for rows.Next() {
 			var m models.Metrics
-			if err = rows.Scan(&m.ID, &m.MType, &m.Delta, &m.Value); err != nil {
+			var delta pgtype.Int8
+			var value pgtype.Float8
+			if err = rows.Scan(&m.ID, &m.MType, &delta, &value); err != nil {
 				return err
+			}
+			switch m.MType {
+			case string(metric.CounterType):
+				m.Delta = &delta.Int64
+			case string(metric.GaugeType):
+				m.Value = &value.Float64
+			default:
+				return fmt.Errorf("invalid metric type: %s", m.MType)
 			}
 			metrics = append(metrics, m)
 		}
@@ -57,13 +87,16 @@ func (repository *dbMetricsRepository) GetAllMetrics() (*[]models.Metrics, error
 	if err != nil {
 		return nil, err
 	}
-	return &metrics, nil
+	return metrics, nil
 }
 
-func (repository *dbMetricsRepository) GetAll() (*map[string]any, error) {
-	var metrics *map[string]any
+// GetAll returns all metrics as a map of metric ID to value.
+// Counter metrics are returned as int64, gauge metrics as float64.
+// Performs a single database query with automatic retry on failure.
+func (repository *dbMetricsRepository) GetAll(ctx context.Context) (map[string]any, error) {
+	var metrics map[string]any
 	err := repository.executeWithRetry(func() error {
-		rows, err := repository.storage.Query("SELECT id, type, delta, value FROM metric;")
+		rows, err := repository.storage.Query(ctx, "SELECT id, type, delta, value FROM metric;")
 		if err != nil {
 			return err
 		}
@@ -72,14 +105,19 @@ func (repository *dbMetricsRepository) GetAll() (*map[string]any, error) {
 		currentMetrics := make(map[string]any)
 		for rows.Next() {
 			var m models.Metrics
-			if err = rows.Scan(&m.ID, &m.MType, &m.Delta, &m.Value); err != nil {
+			var delta pgtype.Int8
+			var value pgtype.Float8
+
+			if err = rows.Scan(&m.ID, &m.MType, &delta, &value); err != nil {
 				return err
 			}
 			switch m.MType {
 			case string(metric.CounterType):
-				currentMetrics[m.ID] = *m.Delta
+				currentMetrics[m.ID] = delta.Int64
 			case string(metric.GaugeType):
-				currentMetrics[m.ID] = *m.Value
+				currentMetrics[m.ID] = value.Float64
+			default:
+				return fmt.Errorf("invalid metric type: %s", m.MType)
 			}
 		}
 
@@ -87,7 +125,7 @@ func (repository *dbMetricsRepository) GetAll() (*map[string]any, error) {
 			return err
 		}
 
-		metrics = &currentMetrics
+		metrics = currentMetrics
 		return nil
 	})
 
@@ -97,15 +135,20 @@ func (repository *dbMetricsRepository) GetAll() (*map[string]any, error) {
 	return metrics, nil
 }
 
-func (repository *dbMetricsRepository) Get(metricID string) (*models.Metrics, error) {
-	var metric *models.Metrics
+// Get retrieves a single metric by its ID from the database.
+// Returns sql.ErrNoRows wrapped in a descriptive error if metric not found.
+func (repository *dbMetricsRepository) Get(ctx context.Context, metricID string) (*models.Metrics, error) {
+	var result models.Metrics
 	err := repository.executeWithRetry(func() error {
 		m := models.Metrics{}
+		var delta pgtype.Int8
+		var value pgtype.Float8
 		err := repository.storage.QueryRow(
+			ctx,
 			"SELECT id, type, delta, value FROM metric WHERE id = $1",
 			metricID,
 		).
-			Scan(&m.ID, &m.MType, &m.Delta, &m.Value)
+			Scan(&m.ID, &m.MType, &delta, &value)
 
 		if err != nil {
 			if err == sql.ErrNoRows {
@@ -113,25 +156,37 @@ func (repository *dbMetricsRepository) Get(metricID string) (*models.Metrics, er
 			}
 			return err
 		}
-		metric = &m
+		switch m.MType {
+		case string(metric.CounterType):
+			m.Delta = &delta.Int64
+		case string(metric.GaugeType):
+			m.Value = &value.Float64
+		default:
+			return fmt.Errorf("invalid metric type: %s", m.MType)
+		}
+		result = m
 		return nil
 	})
 
 	if err != nil {
 		return nil, err
 	}
-	return metric, nil
+	return &result, nil
 }
 
-func (repository *dbMetricsRepository) Add(metric models.Metrics) error {
+// Add increments a counter metric in the database.
+// Uses UPSERT pattern: inserts new counter or adds delta to existing one.
+// Executes within a transaction with automatic rollback on error.
+func (repository *dbMetricsRepository) Add(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
 		_, err = tx.Exec(
+			ctx,
 			`INSERT INTO metric (id, type, delta)
             VALUES ($1, 'counter', $2)
             ON CONFLICT (id)
@@ -143,51 +198,62 @@ func (repository *dbMetricsRepository) Add(metric models.Metrics) error {
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
-func (repository *dbMetricsRepository) AddAll(metrics *[]models.Metrics) error {
+// AddAll performs batch addition of counter metrics.
+// Uses PostgreSQL array operations for efficient bulk UPSERT.
+// More performant than multiple individual Add calls.
+func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
-		ids := make([]string, len(*metrics))
-		deltas := make([]int64, len(*metrics))
+		ids := make([]string, len(metrics))
+		deltas := make([]int64, len(metrics))
 
-		for i, metric := range *metrics {
+		for i, metric := range metrics {
 			ids[i] = metric.ID
 			deltas[i] = *metric.Delta
 		}
 
-		_, err = tx.Exec(`
-            INSERT INTO metric (id, type, delta)
-            SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
-            ON CONFLICT (id) DO UPDATE 
-            SET delta = metric.delta + EXCLUDED.delta
-        ;`, pq.Array(ids), pq.Array(deltas))
-
+		_, err = tx.Exec(
+			ctx,
+			`
+			INSERT INTO metric (id, type, delta)
+			SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
+			ON CONFLICT (id) DO UPDATE
+			SET delta = metric.delta + EXCLUDED.delta
+			`,
+			ids,
+			deltas,
+		)
 		if err != nil {
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
-func (repository *dbMetricsRepository) Reset(metric models.Metrics) error {
+// Reset sets a gauge metric to a specific value in the database.
+// Uses UPSERT pattern: inserts new gauge or updates existing value.
+// Executes within a transaction with automatic rollback on error.
+func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
 
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
 		_, err = tx.Exec(
+			ctx,
 			`INSERT INTO metric (id, type, value)
 			VALUES ($1, 'gauge', $2)
 			ON CONFLICT (id)
@@ -199,61 +265,72 @@ func (repository *dbMetricsRepository) Reset(metric models.Metrics) error {
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
-func (repository *dbMetricsRepository) ResetAll(metrics *[]models.Metrics) error {
+// ResetAll performs batch reset of gauge metrics.
+// Uses PostgreSQL array operations for efficient bulk UPSERT.
+// Updates existing values or inserts new metrics in a single operation.
+func (repository *dbMetricsRepository) ResetAll(ctx context.Context, metrics []models.Metrics) error {
 	return repository.executeWithRetry(func() error {
-		tx, err := repository.storage.Begin()
+		tx, err := repository.storage.Begin(ctx)
 		if err != nil {
 			return err
 		}
 
-		defer tx.Rollback()
+		defer tx.Rollback(ctx)
 
-		ids := make([]string, len(*metrics))
-		values := make([]float64, len(*metrics))
+		ids := make([]string, len(metrics))
+		values := make([]float64, len(metrics))
 
-		for i, metric := range *metrics {
+		for i, metric := range metrics {
 			ids[i] = metric.ID
 			values[i] = *metric.Value
 		}
 
-		_, err = tx.Exec(`
+		_, err = tx.Exec(
+			ctx,
+			`
 			INSERT INTO metric (id, type, value)
 			SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
 			ON CONFLICT (id) DO UPDATE 
 			SET value = EXCLUDED.value;
-		;`, pq.Array(ids), pq.Array(values))
+		;`, ids, values)
 
 		if err != nil {
 			return err
 		}
 
-		return tx.Commit()
+		return tx.Commit(ctx)
 	})
 }
 
+// isRetryableError determines if a database error is transient and safe to retry.
+// Checks PostgreSQL error codes for connection issues, deadlocks, and serialization failures.
 func isRetryableError(err error) bool {
-	if pqErr, ok := err.(*pq.Error); ok {
-		switch pqErr.Code {
-		case "08000", // connection_exception
-			"08003", // connection_does_not_exist
-			"08006", // connection_failure
-			"08001", // sqlclient_unable_to_establish_sqlconnection
-			"08004", // sqlserver_rejected_establishment_of_sqlconnection
-			"08007", // transaction_resolution_unknown
-			"40001", // serialization_failure
-			"40P01", // deadlock_detected
-			"55006", // object_in_use
-			"55P03": // lock_not_available
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		switch pgErr.Code {
+		case "08000",
+			"08003",
+			"08006",
+			"08001",
+			"08004",
+			"08007",
+			"40001",
+			"40P01",
+			"55006",
+			"55P03":
 			return true
 		}
 	}
 	return false
 }
 
+// executeWithRetry executes a database operation with automatic retry logic.
+// Implements exponential backoff for retryable errors.
+// Returns the last error if all retries fail.
 func (repository *dbMetricsRepository) executeWithRetry(operation func() error) error {
 	var lastErr error
 	currentRetryDelay := retryDelay

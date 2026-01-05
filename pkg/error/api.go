@@ -6,10 +6,20 @@ import (
 	"net/http"
 )
 
+// APIError represents an internal application error.
+//
+// Used inside service and handler layers.
+// Serialized to client as ErrorResponse.
+//
+// swagger:model APIError
 type APIError struct {
-	Code    int
-	Message string
-	Err     error
+	// HTTP status code
+	// example: 400
+	Code int `json:"-"`
+	// Error message
+	// example: invalid metric type
+	Message string `json:"error"`
+	Err     error  `json:"-"`
 }
 
 func (e *APIError) Error() string {
@@ -48,6 +58,14 @@ func Unauthorized(message string) *APIError {
 	return &APIError{Code: http.StatusUnauthorized, Message: message}
 }
 
+// RespondError writes an API error response to the client.
+//
+// On error, responds with JSON body:
+//
+//	{ "error": "<message>" }
+//
+// HTTP status code is taken from APIError.Code.
+// Unknown errors are converted to 500 Internal Server Error.
 func RespondError(w http.ResponseWriter, err error) {
 
 	if err == nil {
@@ -62,5 +80,5 @@ func RespondError(w http.ResponseWriter, err error) {
 	requestID := w.Header().Get("X-Request-ID")
 	slog.Info("error request handling", slog.Any("error", apiErr.Err), slog.String("message", apiErr.Message), slog.String("id", requestID))
 	w.WriteHeader(apiErr.Code)
-	json.NewEncoder(w).Encode(map[string]string{"error": apiErr.Message})
+	json.NewEncoder(w).Encode(apiErr)
 }

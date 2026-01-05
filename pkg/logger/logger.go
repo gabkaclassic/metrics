@@ -6,13 +6,26 @@ import (
 	"os"
 )
 
+// LogConfig defines logger configuration parameters.
 type LogConfig struct {
-	Level   string
-	File    string
+	// Logging level: debug, info, warn, error.
+	Level string
+
+	// Path to log file. If empty, file logging is disabled.
+	File string
+
+	// Enable logging to stdout.
 	Console bool
-	JSON    bool
+
+	// Enable JSON log format. If false, text format is used.
+	JSON bool
 }
 
+// SetupLogger initializes and sets the default application logger.
+//
+// The function configures log level, format and output destinations
+// according to provided configuration and installs the logger globally
+// using slog.SetDefault.
 func SetupLogger(cfg LogConfig) {
 
 	logger := new(
@@ -24,6 +37,14 @@ func SetupLogger(cfg LogConfig) {
 	slog.SetDefault(logger)
 }
 
+// new creates a configured slog.Logger instance using functional options.
+//
+// Defaults:
+//   - level: info
+//   - format: JSON
+//   - output: disabled (no writers)
+//
+// Intended for internal use only.
 func new(opts ...Option) *slog.Logger {
 	o := &options{
 		level:   slog.LevelInfo,

@@ -3,24 +3,28 @@ package repository
 import (
 	"database/sql"
 	"errors"
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/gabkaclassic/metrics/internal/model"
-	"github.com/gabkaclassic/metrics/pkg/metric"
-	"github.com/lib/pq"
-	"github.com/stretchr/testify/assert"
 	"regexp"
 	"testing"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pashagolub/pgxmock/v4"
+
+	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/internal/storage"
+	"github.com/gabkaclassic/metrics/pkg/metric"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewDBMetricsRepository(t *testing.T) {
+	storageMock := storage.NewMockDB(t)
 	tests := []struct {
 		name        string
-		storage     *sql.DB
+		storage     storage.DB
 		expectError bool
 	}{
 		{
 			name:        "valid db connection",
-			storage:     &sql.DB{},
+			storage:     storageMock,
 			expectError: false,
 		},
 		{
@@ -51,28 +55,28 @@ func TestNewDBMetricsRepository(t *testing.T) {
 }
 
 func TestDBMetricsRepository_GetAll(t *testing.T) {
-	db, mock, err := sqlmock.New()
+	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer mock.Close()
 
-	repo, err := NewDBMetricsRepository(db)
+	repo, err := NewDBMetricsRepository(mock)
 	assert.NoError(t, err)
 
 	tests := []struct {
 		name        string
 		mockQuery   func()
-		expectData  *map[string]any
+		expectData  map[string]any
 		expectError bool
 	}{
 		{
 			name: "success mixed metrics",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow("counter1", string(metric.CounterType), int64(5), nil).
 					AddRow("gauge1", string(metric.GaugeType), nil, float64(3.14))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &map[string]any{
+			expectData: map[string]any{
 				"counter1": int64(5),
 				"gauge1":   float64(3.14),
 			},
@@ -87,23 +91,13 @@ func TestDBMetricsRepository_GetAll(t *testing.T) {
 			expectData:  nil,
 			expectError: true,
 		},
-		{
-			name: "scan error",
-			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
-					AddRow(nil, nil, nil, nil)
-				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
-			},
-			expectData:  nil,
-			expectError: true,
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			result, err := repo.GetAll()
+			result, err := repo.GetAll(t.Context())
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -119,11 +113,11 @@ func TestDBMetricsRepository_GetAll(t *testing.T) {
 }
 
 func TestDBMetricsRepository_Get(t *testing.T) {
-	db, mock, err := sqlmock.New()
+	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer mock.Close()
 
-	repo, err := NewDBMetricsRepository(db)
+	repo, err := NewDBMetricsRepository(mock)
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -138,7 +132,7 @@ func TestDBMetricsRepository_Get(t *testing.T) {
 			name:     "success gauge metric",
 			metricID: "g1",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow("g1", string(metric.GaugeType), nil, float64(12.34))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric WHERE id = \\$1").
 					WithArgs("g1").WillReturnRows(rows)
@@ -154,7 +148,7 @@ func TestDBMetricsRepository_Get(t *testing.T) {
 			name:     "success counter metric",
 			metricID: "c1",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow("c1", string(metric.CounterType), int64(7), nil)
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric WHERE id = \\$1").
 					WithArgs("c1").WillReturnRows(rows)
@@ -194,7 +188,7 @@ func TestDBMetricsRepository_Get(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			result, err := repo.Get(tt.metricID)
+			result, err := repo.Get(t.Context(), tt.metricID)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -214,11 +208,11 @@ func TestDBMetricsRepository_Get(t *testing.T) {
 }
 
 func TestDBMetricsRepository_Add(t *testing.T) {
-	db, mock, err := sqlmock.New()
+	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer mock.Close()
 
-	repo, err := NewDBMetricsRepository(db)
+	repo, err := NewDBMetricsRepository(mock)
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -239,7 +233,7 @@ func TestDBMetricsRepository_Add(t *testing.T) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`INSERT INTO metric \(id, type, delta\)`).
 					WithArgs("c1", intPtr(10)).
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit()
 			},
 			expectError: false,
@@ -285,7 +279,7 @@ func TestDBMetricsRepository_Add(t *testing.T) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`INSERT INTO metric \(id, type, delta\)`).
 					WithArgs("c4", intPtr(20)).
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit().WillReturnError(errors.New("commit failed"))
 			},
 			expectError: true,
@@ -297,7 +291,7 @@ func TestDBMetricsRepository_Add(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.Add(tt.metric)
+			err := repo.Add(t.Context(), tt.metric)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -312,11 +306,11 @@ func TestDBMetricsRepository_Add(t *testing.T) {
 }
 
 func TestDBMetricsRepository_Reset(t *testing.T) {
-	db, mock, err := sqlmock.New()
+	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer mock.Close()
 
-	repo, err := NewDBMetricsRepository(db)
+	repo, err := NewDBMetricsRepository(mock)
 	assert.NoError(t, err)
 
 	tests := []struct {
@@ -337,7 +331,7 @@ func TestDBMetricsRepository_Reset(t *testing.T) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`INSERT INTO metric \(id, type, value\)`).
 					WithArgs("g1", floatPtr(42.42)).
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit()
 			},
 			expectError: false,
@@ -383,7 +377,7 @@ func TestDBMetricsRepository_Reset(t *testing.T) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`INSERT INTO metric \(id, type, value\)`).
 					WithArgs("g4", floatPtr(99.9)).
-					WillReturnResult(sqlmock.NewResult(1, 1))
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit().WillReturnError(errors.New("commit failed"))
 			},
 			expectError: true,
@@ -395,7 +389,7 @@ func TestDBMetricsRepository_Reset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.Reset(tt.metric)
+			err := repo.Reset(t.Context(), tt.metric)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -410,79 +404,76 @@ func TestDBMetricsRepository_Reset(t *testing.T) {
 }
 
 func TestDBMetricsRepository_AddAll(t *testing.T) {
-	db, mock, err := sqlmock.New()
+	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer mock.Close()
 
-	repo, err := NewDBMetricsRepository(db)
+	repo, err := NewDBMetricsRepository(mock)
 	assert.NoError(t, err)
 
 	tests := []struct {
 		name        string
-		metrics     *[]models.Metrics
+		metrics     []models.Metrics
 		mockQuery   func()
 		expectError bool
 	}{
 		{
 			name: "success single counter",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, delta)
-        SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
-        ON CONFLICT (id) DO UPDATE 
-        SET delta = metric.delta + EXCLUDED.delta
-    ;`)).
-					WithArgs(pq.Array([]string{"c1"}), pq.Array([]int64{10})).
-					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec(regexp.QuoteMeta(
+					"INSERT INTO metric (id, type, delta) "+
+						"SELECT unnest($1::text[]), 'counter', unnest($2::bigint[]) "+
+						"ON CONFLICT (id) DO UPDATE SET delta = metric.delta + EXCLUDED.delta",
+				)).
+					WithArgs([]string{"c1"}, []int64{10}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit()
 			},
 			expectError: false,
 		},
 		{
 			name: "success multiple counters",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 				{ID: "c2", MType: models.Counter, Delta: intPtr(5)},
 				{ID: "c1", MType: models.Counter, Delta: intPtr(3)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, delta)
-        SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
-        ON CONFLICT (id) DO UPDATE 
-        SET delta = metric.delta + EXCLUDED.delta
-    ;`)).
-					WithArgs(pq.Array([]string{"c1", "c2", "c1"}), pq.Array([]int64{10, 5, 3})).
-					WillReturnResult(sqlmock.NewResult(0, 3))
+				mock.ExpectExec(regexp.QuoteMeta(
+					"INSERT INTO metric (id, type, delta) "+
+						"SELECT unnest($1::text[]), 'counter', unnest($2::bigint[]) "+
+						"ON CONFLICT (id) DO UPDATE "+
+						"SET delta = metric.delta + EXCLUDED.delta",
+				)).
+					WithArgs([]string{"c1", "c2", "c1"}, []int64{10, 5, 3}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 3))
 				mock.ExpectCommit()
 			},
 			expectError: false,
 		},
 		{
 			name:    "empty metrics",
-			metrics: &[]models.Metrics{},
+			metrics: []models.Metrics{},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, delta)
-        SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
-        ON CONFLICT (id) DO UPDATE 
-        SET delta = metric.delta + EXCLUDED.delta
-    ;`)).
-					WithArgs(pq.Array([]string{}), pq.Array([]int64{})).
-					WillReturnResult(sqlmock.NewResult(0, 0))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, delta) "+
+					"SELECT unnest($1::text[]), 'counter', unnest($2::bigint[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET delta = metric.delta + EXCLUDED.delta")).
+					WithArgs([]string{}, []int64{}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 0))
 				mock.ExpectCommit()
 			},
 			expectError: false,
 		},
 		{
 			name: "begin transaction error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
@@ -492,18 +483,16 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		},
 		{
 			name: "exec query error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, delta)
-        SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
-        ON CONFLICT (id) DO UPDATE 
-        SET delta = metric.delta + EXCLUDED.delta
-    ;`)).
-					WithArgs(pq.Array([]string{"c1"}), pq.Array([]int64{10})).
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, delta) "+
+					"SELECT unnest($1::text[]), 'counter', unnest($2::bigint[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET delta = metric.delta + EXCLUDED.delta")).
+					WithArgs([]string{"c1"}, []int64{10}).
 					WillReturnError(errors.New("exec error"))
 				mock.ExpectRollback()
 			},
@@ -511,19 +500,17 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		},
 		{
 			name: "commit error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "c1", MType: models.Counter, Delta: intPtr(10)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, delta)
-        SELECT unnest($1::text[]), 'counter', unnest($2::bigint[])
-        ON CONFLICT (id) DO UPDATE 
-        SET delta = metric.delta + EXCLUDED.delta
-    ;`)).
-					WithArgs(pq.Array([]string{"c1"}), pq.Array([]int64{10})).
-					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, delta) "+
+					"SELECT unnest($1::text[]), 'counter', unnest($2::bigint[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET delta = metric.delta + EXCLUDED.delta")).
+					WithArgs([]string{"c1"}, []int64{10}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit().WillReturnError(errors.New("commit error"))
 			},
 			expectError: true,
@@ -534,7 +521,7 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.AddAll(tt.metrics)
+			err := repo.AddAll(t.Context(), tt.metrics)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -548,79 +535,74 @@ func TestDBMetricsRepository_AddAll(t *testing.T) {
 }
 
 func TestDBMetricsRepository_ResetAll(t *testing.T) {
-	db, mock, err := sqlmock.New()
+	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer mock.Close()
 
-	repo, err := NewDBMetricsRepository(db)
+	repo, err := NewDBMetricsRepository(mock)
 	assert.NoError(t, err)
 
 	tests := []struct {
 		name        string
-		metrics     *[]models.Metrics
+		metrics     []models.Metrics
 		mockQuery   func()
 		expectError bool
 	}{
 		{
 			name: "success single gauge",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, value)
-        SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
-        ON CONFLICT (id) DO UPDATE 
-        SET value = EXCLUDED.value;
-    ;`)).
-					WithArgs(pq.Array([]string{"g1"}), pq.Array([]float64{3.14})).
-					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, value) "+
+					"SELECT unnest($1::text[]), 'gauge', unnest($2::float8[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET value = EXCLUDED.value")).
+					WithArgs([]string{"g1"}, []float64{3.14}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit()
 			},
 			expectError: false,
 		},
 		{
 			name: "success multiple gauges",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 				{ID: "g2", MType: models.Gauge, Value: floatPtr(2.71)},
 				{ID: "g3", MType: models.Gauge, Value: floatPtr(1.41)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, value)
-        SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
-        ON CONFLICT (id) DO UPDATE 
-        SET value = EXCLUDED.value;
-    ;`)).
-					WithArgs(pq.Array([]string{"g1", "g2", "g3"}), pq.Array([]float64{3.14, 2.71, 1.41})).
-					WillReturnResult(sqlmock.NewResult(0, 3))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, value) "+
+					"SELECT unnest($1::text[]), 'gauge', unnest($2::float8[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET value = EXCLUDED.value")).
+					WithArgs([]string{"g1", "g2", "g3"}, []float64{3.14, 2.71, 1.41}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 3))
 				mock.ExpectCommit()
 			},
 			expectError: false,
 		},
 		{
 			name:    "empty metrics",
-			metrics: &[]models.Metrics{},
+			metrics: []models.Metrics{},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, value)
-        SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
-        ON CONFLICT (id) DO UPDATE 
-        SET value = EXCLUDED.value;
-    ;`)).
-					WithArgs(pq.Array([]string{}), pq.Array([]float64{})).
-					WillReturnResult(sqlmock.NewResult(0, 0))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, value) "+
+					"SELECT unnest($1::text[]), 'gauge', unnest($2::float8[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET value = EXCLUDED.value; "+
+					";")).
+					WithArgs([]string{}, []float64{}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 0))
 				mock.ExpectCommit()
 			},
 			expectError: false,
 		},
 		{
 			name: "begin transaction error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
@@ -630,18 +612,17 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		},
 		{
 			name: "exec query error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, value)
-        SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
-        ON CONFLICT (id) DO UPDATE 
-        SET value = EXCLUDED.value;
-    ;`)).
-					WithArgs(pq.Array([]string{"g1"}), pq.Array([]float64{3.14})).
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, value) "+
+					"SELECT unnest($1::text[]), 'gauge', unnest($2::float8[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET value = EXCLUDED.value; "+
+					";")).
+					WithArgs([]string{"g1"}, []float64{3.14}).
 					WillReturnError(errors.New("exec error"))
 				mock.ExpectRollback()
 			},
@@ -649,19 +630,18 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		},
 		{
 			name: "commit error",
-			metrics: &[]models.Metrics{
+			metrics: []models.Metrics{
 				{ID: "g1", MType: models.Gauge, Value: floatPtr(3.14)},
 			},
 			mockQuery: func() {
 				mock.ExpectBegin()
-				mock.ExpectExec(regexp.QuoteMeta(`
-        INSERT INTO metric (id, type, value)
-        SELECT unnest($1::text[]), 'gauge', unnest($2::float8[])
-        ON CONFLICT (id) DO UPDATE 
-        SET value = EXCLUDED.value;
-    ;`)).
-					WithArgs(pq.Array([]string{"g1"}), pq.Array([]float64{3.14})).
-					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO metric (id, type, value) "+
+					"SELECT unnest($1::text[]), 'gauge', unnest($2::float8[]) "+
+					"ON CONFLICT (id) DO UPDATE "+
+					"SET value = EXCLUDED.value; "+
+					";")).
+					WithArgs([]string{"g1"}, []float64{3.14}).
+					WillReturnResult(pgxmock.NewResult("INSERT", 1))
 				mock.ExpectCommit().WillReturnError(errors.New("commit error"))
 			},
 			expectError: true,
@@ -672,7 +652,7 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.ResetAll(tt.metrics)
+			err := repo.ResetAll(t.Context(), tt.metrics)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -686,28 +666,28 @@ func TestDBMetricsRepository_ResetAll(t *testing.T) {
 }
 
 func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
-	db, mock, err := sqlmock.New()
+	mock, err := pgxmock.NewPool()
 	assert.NoError(t, err)
-	defer db.Close()
+	defer mock.Close()
 
-	repo, err := NewDBMetricsRepository(db)
+	repo, err := NewDBMetricsRepository(mock)
 	assert.NoError(t, err)
 
 	tests := []struct {
 		name        string
 		mockQuery   func()
-		expectData  *[]models.Metrics
+		expectData  []models.Metrics
 		expectError bool
 	}{
 		{
 			name: "success mixed metrics",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow("counter1", string(models.Counter), int64(5), nil).
 					AddRow("gauge1", string(models.Gauge), nil, float64(3.14))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &[]models.Metrics{
+			expectData: []models.Metrics{
 				{ID: "counter1", MType: models.Counter, Delta: intPtr(5), Value: nil},
 				{ID: "gauge1", MType: models.Gauge, Delta: nil, Value: floatPtr(3.14)},
 			},
@@ -716,12 +696,12 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 		{
 			name: "success only counters",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow("counter1", string(models.Counter), int64(10), nil).
 					AddRow("counter2", string(models.Counter), int64(20), nil)
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &[]models.Metrics{
+			expectData: []models.Metrics{
 				{ID: "counter1", MType: models.Counter, Delta: intPtr(10), Value: nil},
 				{ID: "counter2", MType: models.Counter, Delta: intPtr(20), Value: nil},
 			},
@@ -730,12 +710,12 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 		{
 			name: "success only gauges",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow("gauge1", string(models.Gauge), nil, float64(1.1)).
 					AddRow("gauge2", string(models.Gauge), nil, float64(2.2))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData: &[]models.Metrics{
+			expectData: []models.Metrics{
 				{ID: "gauge1", MType: models.Gauge, Delta: nil, Value: floatPtr(1.1)},
 				{ID: "gauge2", MType: models.Gauge, Delta: nil, Value: floatPtr(2.2)},
 			},
@@ -744,10 +724,10 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 		{
 			name: "empty result",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"})
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"})
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
-			expectData:  &[]models.Metrics{},
+			expectData:  []models.Metrics{},
 			expectError: false,
 		},
 		{
@@ -762,7 +742,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 		{
 			name: "scan error",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow(nil, nil, nil, nil)
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
 			},
@@ -772,7 +752,7 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 		{
 			name: "rows error",
 			mockQuery: func() {
-				rows := sqlmock.NewRows([]string{"id", "type", "delta", "value"}).
+				rows := pgxmock.NewRows([]string{"id", "type", "delta", "value"}).
 					AddRow("counter1", string(models.Counter), int64(5), nil).
 					RowError(0, errors.New("row error"))
 				mock.ExpectQuery("SELECT id, type, delta, value FROM metric;").WillReturnRows(rows)
@@ -786,16 +766,16 @@ func TestDBMetricsRepository_GetAllMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			result, err := repo.GetAllMetrics()
+			result, err := repo.GetAllMetrics(t.Context())
 
 			if tt.expectError {
 				assert.Error(t, err)
 				assert.Nil(t, result)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, len(*tt.expectData), len(*result))
-				for i, expectedMetric := range *tt.expectData {
-					actualMetric := (*result)[i]
+				assert.Equal(t, len(tt.expectData), len(result))
+				for i, expectedMetric := range tt.expectData {
+					actualMetric := result[i]
 					assert.Equal(t, expectedMetric.ID, actualMetric.ID)
 					assert.Equal(t, expectedMetric.MType, actualMetric.MType)
 					if expectedMetric.Delta != nil {

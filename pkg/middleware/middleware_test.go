@@ -2,10 +2,17 @@ package middleware
 
 import (
 	"bytes"
+	"compress/gzip"
+	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/gabkaclassic/metrics/pkg/compress"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -340,6 +347,317 @@ func TestSignVerify(t *testing.T) {
 
 			assert.Equal(t, tt.expectStatus, rr.Code)
 			assert.Equal(t, tt.expectNextCall, nextCalled)
+		})
+	}
+}
+
+func TestAuditContext(t *testing.T) {
+	tests := []struct {
+		name       string
+		remoteAddr string
+		xff        string
+		expectIP   string
+	}{
+		{
+			name:       "uses RemoteAddr when no X-Forwarded-For",
+			remoteAddr: "10.0.0.1:12345",
+			expectIP:   "10.0.0.1:12345",
+		},
+		{
+			name:       "uses first X-Forwarded-For value",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "192.168.1.1, 192.168.1.2",
+			expectIP:   "192.168.1.1",
+		},
+		{
+			name:       "trims spaces in X-Forwarded-For",
+			remoteAddr: "10.0.0.1:12345",
+			xff:        "  172.16.0.1  ",
+			expectIP:   "172.16.0.1",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var gotIP string
+			var gotTS int64
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				gotIP, _ = r.Context().Value(ctxIPKey).(string)
+				gotTS, _ = r.Context().Value(ctxTSKey).(int64)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mw := AuditContext(next)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.RemoteAddr = tt.remoteAddr
+			if tt.xff != "" {
+				req.Header.Set("X-Forwarded-For", tt.xff)
+			}
+
+			rr := httptest.NewRecorder()
+			before := time.Now().Unix()
+
+			mw.ServeHTTP(rr, req)
+
+			after := time.Now().Unix()
+
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, tt.expectIP, gotIP)
+			assert.True(t, gotTS >= before && gotTS <= after)
+		})
+	}
+}
+
+func TestAuditIPFromCtx(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		expected string
+	}{
+		{
+			name:     "ctx with valid IP string",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, "192.168.1.1"),
+			expected: "192.168.1.1",
+		},
+		{
+			name:     "ctx with wrong value type",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, 123),
+			expected: "",
+		},
+		{
+			name:     "ctx without IP key",
+			ctx:      context.Background(),
+			expected: "",
+		},
+		{
+			name:     "ctx with nil value",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, nil),
+			expected: "",
+		},
+		{
+			name:     "ctx with empty string",
+			ctx:      context.WithValue(context.Background(), ctxIPKey, ""),
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AuditIPFromCtx(tt.ctx)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestAuditTSFromCtx(t *testing.T) {
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		expected int64
+	}{
+		{
+			name:     "ctx with valid timestamp",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, int64(1672531200)),
+			expected: 1672531200,
+		},
+		{
+			name:     "ctx with wrong value type",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, "not-a-timestamp"),
+			expected: 0,
+		},
+		{
+			name:     "ctx without TS key",
+			ctx:      context.Background(),
+			expected: 0,
+		},
+		{
+			name:     "ctx with nil value",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, nil),
+			expected: 0,
+		},
+		{
+			name:     "ctx with zero value",
+			ctx:      context.WithValue(context.Background(), ctxTSKey, int64(0)),
+			expected: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := AuditTSFromCtx(tt.ctx)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestCompressMiddleware(t *testing.T) {
+	tests := []struct {
+		name             string
+		contentType      string
+		acceptEncoding   string
+		compressMapping  map[ContentType]CompressType
+		expectCompressed bool
+		expectNextCall   bool
+	}{
+		{
+			name:           "no compression when accept-encoding does not match",
+			contentType:    "application/json",
+			acceptEncoding: "br",
+			compressMapping: map[ContentType]CompressType{
+				"application/json": "gzip",
+			},
+			expectCompressed: false,
+			expectNextCall:   true,
+		},
+		{
+			name:           "no compression when content-type not in mapping",
+			contentType:    "text/plain",
+			acceptEncoding: "gzip",
+			compressMapping: map[ContentType]CompressType{
+				"application/json": "gzip",
+			},
+			expectCompressed: false,
+			expectNextCall:   true,
+		},
+		{
+			name:           "no compression when compressor does not exist",
+			contentType:    "application/json",
+			acceptEncoding: "gzip",
+			compressMapping: map[ContentType]CompressType{
+				"application/json": "gzip",
+			},
+			expectCompressed: false,
+			expectNextCall:   true,
+		},
+	}
+
+	originalCompressors := compressors
+	defer func() { compressors = originalCompressors }()
+
+	compressors = map[CompressType]func(http.ResponseWriter) (*compress.CompressWriter, error){
+		GZIP: compress.NewGzipWriter,
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				w.Header().Set("Content-Type", tt.contentType)
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("response-body"))
+			})
+
+			mw := Compress(tt.compressMapping)(next)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			req.Header.Set("Accept-Encoding", tt.acceptEncoding)
+
+			rr := httptest.NewRecorder()
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectNextCall, nextCalled)
+
+			encoding := rr.Header().Get("Content-Encoding")
+			if tt.expectCompressed {
+				assert.Equal(t, "gzip", encoding)
+			} else {
+				assert.Empty(t, encoding)
+			}
+		})
+	}
+}
+
+func TestDecompressMiddleware(t *testing.T) {
+	tests := []struct {
+		name            string
+		contentEncoding string
+		body            []byte
+		decompressors   map[CompressType]func(io.ReadCloser) (io.ReadCloser, error)
+		expectBody      string
+		expectStatus    int
+		expectNextCall  bool
+	}{
+		{
+			name:            "gzip decompression applied",
+			contentEncoding: "gzip",
+			body: func() []byte {
+				var buf bytes.Buffer
+				w := gzip.NewWriter(&buf)
+				w.Write([]byte("payload"))
+				w.Close()
+				return buf.Bytes()
+			}(),
+			decompressors: map[CompressType]func(io.ReadCloser) (io.ReadCloser, error){
+				"gzip": func(r io.ReadCloser) (io.ReadCloser, error) {
+					gr, err := gzip.NewReader(r)
+					if err != nil {
+						return nil, err
+					}
+					return gr, nil
+				},
+			},
+			expectBody:     "payload",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:            "unknown encoding passes through",
+			contentEncoding: "br",
+			body:            []byte("raw"),
+			decompressors:   map[CompressType]func(io.ReadCloser) (io.ReadCloser, error){},
+			expectBody:      "raw",
+			expectStatus:    http.StatusOK,
+			expectNextCall:  true,
+		},
+		{
+			name:            "decompressor ctor error returns 500",
+			contentEncoding: "gzip",
+			body:            []byte("broken"),
+			decompressors: map[CompressType]func(io.ReadCloser) (io.ReadCloser, error){
+				"gzip": func(r io.ReadCloser) (io.ReadCloser, error) {
+					return nil, errors.New("boom")
+				},
+			},
+			expectStatus:   http.StatusInternalServerError,
+			expectNextCall: false,
+		},
+	}
+
+	originalDecompressors := decompressors
+	defer func() { decompressors = originalDecompressors }()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			nextCalled := false
+			var receivedBody []byte
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				receivedBody, _ = io.ReadAll(r.Body)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mw := Decompress()(next)
+
+			req := httptest.NewRequest(http.MethodPost, "/", io.NopCloser(bytes.NewReader(tt.body)))
+			if tt.contentEncoding != "" {
+				req.Header.Set("Content-Encoding", tt.contentEncoding)
+			}
+
+			rr := httptest.NewRecorder()
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			assert.Equal(t, tt.expectNextCall, nextCalled)
+
+			if tt.expectNextCall && tt.expectBody != "" {
+				assert.Equal(t, tt.expectBody, string(receivedBody))
+			}
 		})
 	}
 }

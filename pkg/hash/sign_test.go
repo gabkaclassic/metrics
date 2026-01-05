@@ -2,8 +2,9 @@ package hash
 
 import (
 	"encoding/base64"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestSHA256Signer_Sign(t *testing.T) {

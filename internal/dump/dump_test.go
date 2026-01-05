@@ -7,9 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gabkaclassic/metrics/internal/model"
+	models "github.com/gabkaclassic/metrics/internal/model"
 	"github.com/gabkaclassic/metrics/internal/repository"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestNewDumper(t *testing.T) {
@@ -71,7 +72,7 @@ func TestDumper_Dump(t *testing.T) {
 				metrics := []models.Metrics{
 					{ID: "test", MType: "counter", Delta: int64Ptr(5)},
 				}
-				m.EXPECT().GetAllMetrics().Return(&metrics, nil)
+				m.EXPECT().GetAllMetrics(mock.Anything).Return(metrics, nil)
 			},
 			expectFile: true,
 			expectErr:  false,
@@ -81,7 +82,7 @@ func TestDumper_Dump(t *testing.T) {
 			filename: "empty_storage_dump.json",
 			mockSetup: func(m *repository.MockMetricsRepository) {
 				metrics := []models.Metrics{}
-				m.EXPECT().GetAllMetrics().Return(&metrics, nil)
+				m.EXPECT().GetAllMetrics(mock.Anything).Return(metrics, nil)
 			},
 			expectFile: true,
 			expectErr:  false,
@@ -90,7 +91,7 @@ func TestDumper_Dump(t *testing.T) {
 			name:     "repository error",
 			filename: "error_dump.json",
 			mockSetup: func(m *repository.MockMetricsRepository) {
-				m.EXPECT().GetAllMetrics().Return(nil, errors.New("get metrics error"))
+				m.EXPECT().GetAllMetrics(mock.Anything).Return(nil, errors.New("get metrics error"))
 			},
 			expectFile: false,
 			expectErr:  true,
@@ -99,7 +100,7 @@ func TestDumper_Dump(t *testing.T) {
 			name:     "nil metrics",
 			filename: "nil_metrics.json",
 			mockSetup: func(m *repository.MockMetricsRepository) {
-				m.EXPECT().GetAllMetrics().Return(nil, nil)
+				m.EXPECT().GetAllMetrics(mock.Anything).Return(nil, nil)
 			},
 			expectFile: true,
 			expectErr:  false,
@@ -115,7 +116,7 @@ func TestDumper_Dump(t *testing.T) {
 			d, err := NewDumper(filePath, mockRepo)
 			assert.NoError(t, err)
 
-			err = d.Dump()
+			err = d.Dump(t.Context())
 
 			if tt.expectErr {
 				assert.Error(t, err)
@@ -166,8 +167,8 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(&counters).Return(nil)
-				m.EXPECT().ResetAll(&gauges).Return(nil)
+				m.EXPECT().AddAll(mock.Anything, counters).Return(nil)
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(nil)
 			},
 			expectErr: false,
 		},
@@ -184,7 +185,7 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(&counters).Return(nil)
+				m.EXPECT().AddAll(mock.Anything, counters).Return(nil)
 			},
 			expectErr: false,
 		},
@@ -201,7 +202,7 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().ResetAll(&gauges).Return(nil)
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(nil)
 			},
 			expectErr: false,
 		},
@@ -240,8 +241,8 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(&counters).Return(errors.New("counter error"))
-				m.EXPECT().ResetAll(&gauges).Return(nil)
+				m.EXPECT().AddAll(mock.Anything, counters).Return(errors.New("counter error"))
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(nil)
 			},
 			expectErr: true,
 		},
@@ -258,8 +259,8 @@ func TestDumper_Read(t *testing.T) {
 				os.WriteFile(path, data, 0660)
 			},
 			mockSetup: func(m *repository.MockMetricsRepository, counters []models.Metrics, gauges []models.Metrics) {
-				m.EXPECT().AddAll(&counters).Return(nil)
-				m.EXPECT().ResetAll(&gauges).Return(errors.New("gauge error"))
+				m.EXPECT().AddAll(mock.Anything, counters).Return(nil)
+				m.EXPECT().ResetAll(mock.Anything, gauges).Return(errors.New("gauge error"))
 			},
 			expectErr: true,
 		},

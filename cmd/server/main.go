@@ -11,6 +11,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/gabkaclassic/metrics/internal/audit"
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/internal/dump"
 	"github.com/gabkaclassic/metrics/internal/handler"
@@ -21,6 +22,13 @@ import (
 	"github.com/gabkaclassic/metrics/pkg/logger"
 )
 
+// @title Metrics Service API
+// @version 1.0
+// @description HTTP API for collecting and retrieving gauge and counter metrics.
+// @description Supports plain-text, JSON and batch endpoints.
+// @contact.name gabkaclassic
+// @license.name MIT
+// @BasePath /
 func main() {
 
 	if err := run(); err != nil {
@@ -35,12 +43,15 @@ func run() error {
 	}
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	var metricsRepository repository.MetricsRepository
 	var dumper *dump.Dumper
 	var dumperEnabled bool
 
 	if len(cfg.DB.DSN) > 0 {
-		storage, err := storage.NewDBStorage(cfg.DB)
+		storage, err := storage.NewDBStorage(ctx, cfg.DB)
 		if err != nil {
 			return fmt.Errorf("failed to initialize database storage: %w", err)
 		}
@@ -73,7 +84,13 @@ func run() error {
 		readDump(cfg.Dump, dumper)
 	}
 
-	router, err := setupRouter(&metricsRepository, cfg.SignKey)
+	auditor, err := audit.NewAudior(cfg.Audit)
+
+	if err != nil {
+		return fmt.Errorf("failed to create auditor: %w", err)
+	}
+
+	router, err := setupRouter(&metricsRepository, cfg.SignKey, auditor)
 	if err != nil {
 		return fmt.Errorf("failed to setup HTTP router: %w", err)
 	}
@@ -82,9 +99,6 @@ func run() error {
 		httpserver.Address(cfg.Address),
 		httpserver.Handler(&router),
 	)
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	if dumperEnabled {
 		go dumper.StartDumper(ctx, cfg.Dump)
@@ -105,10 +119,10 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(metricsRepository *repository.MetricsRepository, signKey string) (http.Handler, error) {
+func setupRouter(metricsRepository *repository.MetricsRepository, signKey string, auditor audit.Auditor) (http.Handler, error) {
 
 	// Metrics
-	metricsService, err := service.NewMetricsService(*metricsRepository)
+	metricsService, err := service.NewMetricsService(*metricsRepository, auditor)
 
 	if err != nil {
 		return nil, err
