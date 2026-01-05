@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,7 +110,7 @@ func resetStmt(temp *packageTemplate, name string, typ ast.Expr) string {
 	}
 }
 
-func main() {
+func run() error {
 	fset := token.NewFileSet()
 	pkgs := map[string]*packageTemplate{}
 
@@ -182,10 +184,27 @@ func main() {
 		out := filepath.Join(dir, "reset.gen.go")
 		f, err := os.Create(out)
 		if err != nil {
-			continue
+			return fmt.Errorf("failed to create generated file: %w", err)
 		}
 
-		_ = tmpl.Execute(f, pt)
-		_ = f.Close()
+		err = tmpl.Execute(f, pt)
+
+		if err != nil {
+			return fmt.Errorf("failed to execute template: %w", err)
+		}
+
+		err = f.Close()
+
+		if err != nil {
+			return fmt.Errorf("failed to close generated file: %w", err)
+		}
+	}
+
+	return nil
+}
+
+func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
 	}
 }
