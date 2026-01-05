@@ -303,7 +303,7 @@ func TestMetricsService_Save(t *testing.T) {
 			rawValue:   "3.14",
 			setupMock: func(m *repository.MockMetricsRepository) {
 				m.EXPECT().
-					Reset(mock.Anything, models.Metrics{
+					ResetOne(mock.Anything, models.Metrics{
 						ID:    "g1",
 						MType: models.Gauge,
 						Value: floatPtr(3.14),
@@ -418,7 +418,7 @@ func TestMetricsService_SaveStruct(t *testing.T) {
 			}
 			if tt.input.MType == models.Gauge {
 				mockRepo.EXPECT().
-					Reset(mock.Anything, mock.AnythingOfType("models.Metrics")).
+					ResetOne(mock.Anything, mock.AnythingOfType("models.Metrics")).
 					RunAndReturn(func(ctx context.Context, metric models.Metrics) error {
 						if tt.mockReset != nil {
 							tt.mockReset(t.Context(), metric)

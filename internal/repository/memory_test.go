@@ -397,7 +397,7 @@ func TestMetricsRepository_Reset(t *testing.T) {
 				storage.Metrics[k] = v
 			}
 
-			err := repo.Reset(t.Context(), tt.resetMetric)
+			err := repo.ResetOne(t.Context(), tt.resetMetric)
 			assert.NoError(t, err)
 
 			result, _ := repo.Get(t.Context(), tt.resetMetric.ID)

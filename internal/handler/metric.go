@@ -35,6 +35,7 @@ var metricsTemplate = template.Must(template.New("metrics").Parse(`
 </html>
 `))
 
+// generate:reset
 type MetricsHandler struct {
 	service service.MetricsService
 }

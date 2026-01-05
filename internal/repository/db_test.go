@@ -389,7 +389,7 @@ func TestDBMetricsRepository_Reset(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.mockQuery()
 
-			err := repo.Reset(t.Context(), tt.metric)
+			err := repo.ResetOne(t.Context(), tt.metric)
 
 			if tt.expectError {
 				assert.Error(t, err)

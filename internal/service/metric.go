@@ -24,6 +24,7 @@ import (
 
 // MetricsService defines the interface for metric business operations.
 // Handles validation, processing, and coordinates repository and audit systems.
+// generate:reset
 type MetricsService interface {
 	// Get retrieves a metric value by ID and type.
 	// Returns the raw value (int64 for counters, float64 for gauges).
@@ -52,6 +53,7 @@ type MetricsService interface {
 
 // metricsService implements MetricsService with repository and audit integration.
 // Provides thread-safe operations through repository synchronization.
+// generate:reset
 type metricsService struct {
 	repository repository.MetricsRepository
 	auditor    audit.Auditor
@@ -209,7 +211,7 @@ func (service *metricsService) Save(ctx context.Context, id string, metricType s
 				MType: models.Gauge,
 				Value: &value,
 			}
-			err := service.repository.Reset(ctx, metric)
+			err := service.repository.ResetOne(ctx, metric)
 			if err != nil {
 				return api.Internal("Reset value error", err)
 			}
@@ -233,7 +235,7 @@ func (service *metricsService) SaveStruct(ctx context.Context, metric models.Met
 	case models.Counter:
 		err = service.repository.Add(ctx, metric)
 	case models.Gauge:
-		err = service.repository.Reset(ctx, metric)
+		err = service.repository.ResetOne(ctx, metric)
 	default:
 		return api.BadRequest(fmt.Sprintf("invalid metric type: %s", metric.MType))
 	}

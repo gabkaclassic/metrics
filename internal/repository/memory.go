@@ -29,7 +29,7 @@ type MetricsRepository interface {
 
 	// Reset sets a gauge metric to a specific value.
 	// Creates the metric if it doesn't exist.
-	Reset(context.Context, models.Metrics) error
+	ResetOne(context.Context, models.Metrics) error
 
 	// Get retrieves a single metric by its ID.
 	// Returns error if metric not found.
@@ -189,7 +189,7 @@ func (repository *memoryMetricsRepository) AddAll(ctx context.Context, metrics [
 
 // Reset sets a gauge metric to a specific value.
 // Creates the metric if it doesn't exist.
-func (repository *memoryMetricsRepository) Reset(ctx context.Context, metric models.Metrics) error {
+func (repository *memoryMetricsRepository) ResetOne(ctx context.Context, metric models.Metrics) error {
 	err := repository.updateMetric(
 		ctx,
 		metric,
