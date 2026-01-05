@@ -20,6 +20,6 @@ test:
 	@echo "==> Running tests with coverage..."
 	@go clean -testcache
 	@go test ./... -coverprofile=$(COVERAGE_FILE)
-	@grep -v -E '(mocks\.gen\.go)|(pkg/metric/*)|(main\.go)|(doc\.go)' $(COVERAGE_FILE) > $(COVERAGE_FILTERED)
+	@grep -v -E '(mocks\.gen\.go)|(pkg/metric/*)|(main\.go)|(doc\.go)|(reset\.gen\.go)' $(COVERAGE_FILE) > $(COVERAGE_FILTERED)
 	@go tool cover -func=$(COVERAGE_FILTERED)
 	@rm $(COVERAGE_FILTERED)
