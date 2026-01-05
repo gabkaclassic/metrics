@@ -4,19 +4,11 @@ COVERAGE_FILE ?= coverage.out
 COVERAGE_FILTERED ?= coverage_filtered.out
 URL ?= http://localhost:8080
 PORT ?= 9090
-VERSION := 1.0.0
-BUILD_DATE := $(shell date +'%Y.%m.%d_%H:%M:%S')
-COMMIT_HASH := $(shell git rev-parse --short HEAD)
-
 
 .PHONY: build test help profile
 
 build:
-	go build -ldflags "\
-	-X main.buildVersion=$(VERSION) \
-	-X main.buildDate=$(BUILD_DATE) \
-	-X main.buildCommit=$(COMMIT_HASH)" \
-	-o build/$(MODULE) cmd/$(MODULE)/main.go
+	go build -o build/$(MODULE) cmd/$(MODULE)/main.go
 
 profile:
 	go tool pprof -http=":${PORT}" -seconds=60 ${URL}/debug/pprof/profile
