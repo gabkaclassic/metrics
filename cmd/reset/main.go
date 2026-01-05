@@ -38,6 +38,9 @@ import "github.com/gabkaclassic/metrics/pkg/reset"
 {{- end}}
 {{range .Entities}}
 func (e *{{.Typ}}) Reset() {
+	if e == nil {
+		return
+	}
 {{- range .Fields}}
 	{{.Value}}
 {{- end}}
@@ -66,12 +69,40 @@ func getBaseType(expr ast.Expr) ast.Expr {
 	}
 }
 
-func resetStmt(temp *packageTemplate, name string, typ ast.Expr) string {
+func hasPointer(expr ast.Expr) bool {
+	switch e := expr.(type) {
+	case *ast.StarExpr:
+		return true
+	case *ast.ParenExpr:
+		return hasPointer(e.X)
+	case *ast.IndexExpr:
+		return hasPointer(e.X)
+	case *ast.IndexListExpr:
+		return hasPointer(e.X)
+	default:
+		_ = e
+		return false
+	}
+}
+func assignZero(name, value string, hasPtr bool) string {
+	if hasPtr {
+		return "if e." + name + " != nil {\n\t*e." + name + " = " + value + "\n}"
+	}
+	return "e." + name + " = " + value
+}
 
+func callReset(name string, hasPtr bool) string {
+	if hasPtr {
+		return "if r, ok := any(e." + name + ").(reset.Resetable); ok && e." + name + " != nil {\n\t\tr.Reset()\n\t}"
+	}
+	return "if r, ok := any(e." + name + ").(reset.Resetable); ok {\n\t\tr.Reset()\n\t}"
+}
+
+func resetStmt(temp *packageTemplate, name string, typ ast.Expr) string {
+	hasPtr := hasPointer(typ)
 	typ = getBaseType(typ)
 
 	switch t := typ.(type) {
-
 	case *ast.MapType:
 		return "clear(e." + name + ")"
 
@@ -81,31 +112,27 @@ func resetStmt(temp *packageTemplate, name string, typ ast.Expr) string {
 	case *ast.Ident:
 		switch t.Name {
 		case "string":
-			return `e.` + name + ` = ""`
+			return assignZero(name, `""`, hasPtr)
 		case "bool":
-			return "e." + name + " = false"
+			return assignZero(name, "false", hasPtr)
 		case "int", "int8", "int16", "int32", "int64",
 			"uint", "uint8", "uint16", "uint32", "uint64",
 			"byte", "rune", "float32", "float64", "complex64", "complex128":
-			return "e." + name + " = 0"
+			return assignZero(name, "0", hasPtr)
 		default:
 			temp.UseReset = true
-			return `if r, ok := e.` + name + `.(reset.Resetable); ok {
-		r.Reset()
-	}`
+			return callReset(name, hasPtr)
 		}
 
 	case *ast.StructType, *ast.InterfaceType:
 		temp.UseReset = true
-		return `if r, ok := e.` + name + `.(reset.Resetable); ok {
-		r.Reset()
-	}`
+		return callReset(name, hasPtr)
 
 	case *ast.FuncType, *ast.ChanType:
 		return "e." + name + " = nil"
 
 	default:
-
+		fmt.Printf("%s - %T\n", name, typ)
 		return "e." + name + " = nil"
 	}
 }
