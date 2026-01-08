@@ -1,6 +1,8 @@
 module github.com/gabkaclassic/metrics
 
-go 1.25.5
+go 1.24.0
+
+toolchain go1.24.7
 
 require (
 	github.com/caarlos0/env/v10 v10.0.0
