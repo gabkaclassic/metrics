@@ -26,6 +26,7 @@ const (
 
 // dbMetricsRepository implements MetricsRepository using PostgreSQL database.
 // Provides persistent storage with ACID compliance and transaction support.
+
 type dbMetricsRepository struct {
 	storage storage.DB
 }
@@ -243,7 +244,7 @@ func (repository *dbMetricsRepository) AddAll(ctx context.Context, metrics []mod
 // Reset sets a gauge metric to a specific value in the database.
 // Uses UPSERT pattern: inserts new gauge or updates existing value.
 // Executes within a transaction with automatic rollback on error.
-func (repository *dbMetricsRepository) Reset(ctx context.Context, metric models.Metrics) error {
+func (repository *dbMetricsRepository) ResetOne(ctx context.Context, metric models.Metrics) error {
 	return repository.executeWithRetry(func() error {
 		tx, err := repository.storage.Begin(ctx)
 		if err != nil {

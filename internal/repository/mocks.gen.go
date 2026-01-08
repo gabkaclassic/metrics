@@ -344,63 +344,6 @@ func (_c *MockMetricsRepository_GetAllMetrics_Call) RunAndReturn(run func(contex
 	return _c
 }
 
-// Reset provides a mock function for the type MockMetricsRepository
-func (_mock *MockMetricsRepository) Reset(context1 context.Context, metrics models.Metrics) error {
-	ret := _mock.Called(context1, metrics)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Reset")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, models.Metrics) error); ok {
-		r0 = returnFunc(context1, metrics)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// MockMetricsRepository_Reset_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Reset'
-type MockMetricsRepository_Reset_Call struct {
-	*mock.Call
-}
-
-// Reset is a helper method to define mock.On call
-//   - context1 context.Context
-//   - metrics models.Metrics
-func (_e *MockMetricsRepository_Expecter) Reset(context1 interface{}, metrics interface{}) *MockMetricsRepository_Reset_Call {
-	return &MockMetricsRepository_Reset_Call{Call: _e.mock.On("Reset", context1, metrics)}
-}
-
-func (_c *MockMetricsRepository_Reset_Call) Run(run func(context1 context.Context, metrics models.Metrics)) *MockMetricsRepository_Reset_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 models.Metrics
-		if args[1] != nil {
-			arg1 = args[1].(models.Metrics)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *MockMetricsRepository_Reset_Call) Return(err error) *MockMetricsRepository_Reset_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *MockMetricsRepository_Reset_Call) RunAndReturn(run func(context1 context.Context, metrics models.Metrics) error) *MockMetricsRepository_Reset_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // ResetAll provides a mock function for the type MockMetricsRepository
 func (_mock *MockMetricsRepository) ResetAll(context1 context.Context, metricss []models.Metrics) error {
 	ret := _mock.Called(context1, metricss)
@@ -454,6 +397,63 @@ func (_c *MockMetricsRepository_ResetAll_Call) Return(err error) *MockMetricsRep
 }
 
 func (_c *MockMetricsRepository_ResetAll_Call) RunAndReturn(run func(context1 context.Context, metricss []models.Metrics) error) *MockMetricsRepository_ResetAll_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// ResetOne provides a mock function for the type MockMetricsRepository
+func (_mock *MockMetricsRepository) ResetOne(context1 context.Context, metrics models.Metrics) error {
+	ret := _mock.Called(context1, metrics)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ResetOne")
+	}
+
+	var r0 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, models.Metrics) error); ok {
+		r0 = returnFunc(context1, metrics)
+	} else {
+		r0 = ret.Error(0)
+	}
+	return r0
+}
+
+// MockMetricsRepository_ResetOne_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResetOne'
+type MockMetricsRepository_ResetOne_Call struct {
+	*mock.Call
+}
+
+// ResetOne is a helper method to define mock.On call
+//   - context1 context.Context
+//   - metrics models.Metrics
+func (_e *MockMetricsRepository_Expecter) ResetOne(context1 interface{}, metrics interface{}) *MockMetricsRepository_ResetOne_Call {
+	return &MockMetricsRepository_ResetOne_Call{Call: _e.mock.On("ResetOne", context1, metrics)}
+}
+
+func (_c *MockMetricsRepository_ResetOne_Call) Run(run func(context1 context.Context, metrics models.Metrics)) *MockMetricsRepository_ResetOne_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 models.Metrics
+		if args[1] != nil {
+			arg1 = args[1].(models.Metrics)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *MockMetricsRepository_ResetOne_Call) Return(err error) *MockMetricsRepository_ResetOne_Call {
+	_c.Call.Return(err)
+	return _c
+}
+
+func (_c *MockMetricsRepository_ResetOne_Call) RunAndReturn(run func(context1 context.Context, metrics models.Metrics) error) *MockMetricsRepository_ResetOne_Call {
 	_c.Call.Return(run)
 	return _c
 }

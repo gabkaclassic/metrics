@@ -1,3 +1,10 @@
+// Package api provides common HTTP API primitives used across handlers and services.
+//
+// The package defines a unified error type (APIError) that encapsulates
+// HTTP status codes, client-facing error messages, and optional internal errors.
+//
+// APIError is used throughout the application to ensure consistent
+// error handling, logging, and JSON serialization of error responses.
 package api
 
 import (

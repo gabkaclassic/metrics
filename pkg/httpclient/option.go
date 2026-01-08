@@ -2,7 +2,7 @@ package httpclient
 
 import "time"
 
-// Delete performs an HTTP DELETE request.
+// Option delete performs an HTTP DELETE request.
 type Option func(*Client)
 
 // BaseURL sets the base URL for all requests.

@@ -62,6 +62,8 @@ func NewDBStorage(ctx context.Context, cfg config.DB) (DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	pool.Config().MaxConns = int32(cfg.MaxConns)
+	pool.Config().MaxConnLifetime = cfg.MaxConnTTL
 
 	if err = pool.Ping(context.Background()); err != nil {
 		pool.Close()
