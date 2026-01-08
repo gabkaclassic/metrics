@@ -47,9 +47,11 @@ type (
 	}
 	// DB contains database-related configuration.
 	DB struct {
-		Driver         string `env:"DB_DRIVER" envDefault:"postgres"`
-		DSN            string `env:"DATABASE_DSN"`
-		MigrationsPath string `env:"DB_MIGRATIONS_PATH" envDefault:"./migrations"`
+		Driver         string        `env:"DB_DRIVER" envDefault:"postgres"`
+		DSN            string        `env:"DATABASE_DSN"`
+		MigrationsPath string        `env:"DB_MIGRATIONS_PATH" envDefault:"./migrations"`
+		MaxConns       int           `env:"DB_MAX_CONNS" envDefault:"4"`
+		MaxConnTTL     time.Duration `env:"DB_MAX_CONN_TTL" envDefault:"60"`
 	}
 	// Client contains HTTP client configuration used by the agent
 	// to communicate with the server.
@@ -137,6 +139,8 @@ func ParseServerConfig() (*Server, error) {
 	dbDSN := flag.String("d", cfg.DB.DSN, "DSN")
 	dbDriver := flag.String("db-driver", cfg.DB.Driver, "Database driver")
 	dbMigrationsPath := flag.String("db-migrations-path", cfg.DB.MigrationsPath, "Migrations file path")
+	dbMaxConns := flag.Int("db-max-conns", int(cfg.DB.MaxConns), "Maximum DB connection amount")
+	dbMaxConTTL := flag.Uint("db-max-conn-ttl", uint(cfg.DB.MaxConnTTL), "Maximum DB connection TTL")
 
 	auditFile := flag.String("audit-file", cfg.Audit.File, "Audit dump filepath")
 	auditURL := flag.String("audit-url", cfg.Audit.URL, "Audit url")
@@ -172,6 +176,10 @@ func ParseServerConfig() (*Server, error) {
 			cfg.DB.DSN = *dbDSN
 		case "db-migrations-path":
 			cfg.DB.MigrationsPath = *dbMigrationsPath
+		case "db-max-conns":
+			cfg.DB.MaxConns = *dbMaxConns
+		case "db-max-conn-ttl":
+			cfg.DB.MaxConnTTL = time.Duration(*dbMaxConTTL) * time.Second
 
 		case "audit-file":
 			cfg.Audit.File = *auditFile
