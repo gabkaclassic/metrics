@@ -61,7 +61,7 @@ func run() error {
 	)
 
 	agent, err := agent.NewAgent(
-		client, cfg.BatchesEnabled, cfg.SignKey, cfg.RateLimit, cfg.BatchSize,
+		client, cfg.BatchesEnabled, cfg.SignKey, cfg.PublicKeyPath, cfg.RateLimit, cfg.BatchSize,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize agent: %w", err)

@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gabkaclassic/metrics/pkg/compress"
+	"github.com/gabkaclassic/metrics/pkg/crypt"
 	api "github.com/gabkaclassic/metrics/pkg/error"
 	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/google/uuid"
@@ -172,6 +173,45 @@ func Decompress() middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func Decrypt(privateKeyPath string) (func(http.Handler) http.Handler, error) {
+
+	var decryptor *crypt.Decryptor
+	var err error
+	if len(privateKeyPath) > 0 {
+		decryptor, err = crypt.NewDecryptor(privateKeyPath)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if decryptor == nil || r.Body == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			encrypted, err := io.ReadAll(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			decrypted, err := decryptor.Decrypt(encrypted)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+
+			r.Body = io.NopCloser(bytes.NewReader(decrypted))
+			r.ContentLength = int64(len(decrypted))
+
+			next.ServeHTTP(w, r)
+		})
+	}, nil
 }
 
 // Wrap applies a chain of middlewares to an HTTP handler.

@@ -27,12 +27,13 @@ import (
 type (
 	// Server represents the full configuration of the metrics server.
 	Server struct {
-		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
-		SignKey string `env:"KEY"`
-		Log     Log
-		Dump    Dump
-		DB      DB
-		Audit   Audit
+		Address        string `env:"ADDRESS" envDefault:"localhost:8080"`
+		SignKey        string `env:"KEY"`
+		Log            Log
+		Dump           Dump
+		DB             DB
+		Audit          Audit
+		PrivateKeyPath string `env:"CRYPTO_KEY"`
 	}
 	// Agent represents the configuration of the metrics agent.
 	Agent struct {
@@ -44,6 +45,7 @@ type (
 		SignKey        string `env:"KEY"`
 		RateLimit      int    `env:"RATE_LIMIT" envDefault:"5"`
 		BatchSize      int    `env:"BATCH_SIZE" envDefault:"100"`
+		PublicKeyPath  string `env:"CRYPTO_KEY"`
 	}
 	// DB contains database-related configuration.
 	DB struct {
@@ -146,6 +148,7 @@ func ParseServerConfig() (*Server, error) {
 	auditURL := flag.String("audit-url", cfg.Audit.URL, "Audit url")
 
 	signKey := flag.String("k", cfg.SignKey, "Key to verify requests bodies")
+	privateKeyPath := flag.String("crypto-key", cfg.PrivateKeyPath, "Path to private key to decrypt requests")
 
 	flag.Parse()
 
@@ -186,6 +189,8 @@ func ParseServerConfig() (*Server, error) {
 		case "audit-url":
 			cfg.Audit.URL = *auditURL
 
+		case "crypto-key":
+			cfg.PrivateKeyPath = *privateKeyPath
 		case "k":
 			cfg.SignKey = *signKey
 		}
@@ -226,6 +231,7 @@ func ParseAgentConfig() (*Agent, error) {
 	logJSON := flag.Bool("log-json", cfg.Log.JSON, "Enable JSON output for logs")
 
 	signKey := flag.String("k", cfg.SignKey, "Key to sign requests bodies")
+	publicKeyPath := flag.String("crypto-key", cfg.PublicKeyPath, "Path to public key to encrypt requests")
 	rateLimit := flag.Int("l", cfg.RateLimit, "Rate limits to send metric")
 
 	flag.Parse()
@@ -259,6 +265,8 @@ func ParseAgentConfig() (*Agent, error) {
 
 		case "k":
 			cfg.SignKey = *signKey
+		case "crypto-key":
+			cfg.PublicKeyPath = *publicKeyPath
 		case "l":
 			cfg.RateLimit = *rateLimit
 		}
