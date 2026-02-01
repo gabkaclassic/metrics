@@ -175,6 +175,10 @@ func Decompress() middleware {
 	}
 }
 
+// Decrypt returns a middleware that decrypts request bodies using RSA private key.
+//
+// If privateKeyPath is empty or request body is nil, passes request unchanged.
+// On decryption failure responds with HTTP 400 Bad Request.
 func Decrypt(privateKeyPath string) (func(http.Handler) http.Handler, error) {
 
 	var decryptor *crypt.Decryptor

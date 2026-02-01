@@ -84,6 +84,7 @@ type MetricsAgent struct {
 //   - Go runtime metrics
 //   - System metrics (CPU, memory)
 //   - Request signer for secure communication
+//   - Request encryptor for requests
 func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, publicKeyPath string, rateLimit int, batchSize int) (*MetricsAgent, error) {
 	metrics := []metric.Metric{
 		// Counters
@@ -432,7 +433,7 @@ func (agent *MetricsAgent) compressData(data []byte) (*bytes.Buffer, error) {
 
 // sendRequest sends an HTTP POST request with compressed, signed data.
 // endpoint: Server endpoint path (e.g., "/update/" or "/updates/").
-// body: Compressed request body.
+// body: Compressed and encrypt request body.
 // Returns error if request fails or server returns non-200 status.
 // Automatically adds required headers: Content-Type, Content-Encoding, Hash.
 func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) error {

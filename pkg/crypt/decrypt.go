@@ -16,10 +16,14 @@ import (
 
 const gcmSize = 12
 
+// Decryptor handles decryption of hybrid-encrypted data.
 type Decryptor struct {
 	privateKey *rsa.PrivateKey
 }
 
+// NewDecryptor creates a Decryptor from RSA private key file.
+//
+// Key file must be in PEM format with PKCS#1 encoding.
 func NewDecryptor(privateKeyPath string) (*Decryptor, error) {
 
 	keyBytes, err := os.ReadFile(privateKeyPath)
@@ -42,6 +46,9 @@ func NewDecryptor(privateKeyPath string) (*Decryptor, error) {
 	}, nil
 }
 
+// Decrypt decrypts hybrid-encrypted payload.
+//
+// Expected format: [2-byte key length][RSA-encrypted AES key][12-byte nonce][AES-GCM ciphertext]
 func (d *Decryptor) Decrypt(payload []byte) ([]byte, error) {
 	buf := bytes.NewReader(payload)
 

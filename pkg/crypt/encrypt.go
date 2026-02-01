@@ -15,10 +15,14 @@ import (
 
 const aesKeyLen = 32
 
+// Encryptor handles hybrid encryption of data.
 type Encryptor struct {
 	publicKey *rsa.PublicKey
 }
 
+// NewEncryptor creates an Encryptor from X.509 certificate file.
+//
+// Certificate file must be in PEM format containing RSA public key.
 func NewEncryptor(publicKeyPath string) (*Encryptor, error) {
 	certificateBytes, err := os.ReadFile(publicKeyPath)
 	if err != nil {
@@ -36,6 +40,9 @@ func NewEncryptor(publicKeyPath string) (*Encryptor, error) {
 	return &Encryptor{publicKey: publicKey}, nil
 }
 
+// Encrypt encrypts data using hybrid RSA/AES-GCM scheme.
+//
+// Output format: [2-byte key length][RSA-encrypted AES key][nonce][AES-GCM ciphertext]
 func (e *Encryptor) Encrypt(plain []byte) ([]byte, error) {
 	aesKey := make([]byte, aesKeyLen)
 	if _, err := rand.Read(aesKey); err != nil {
