@@ -431,18 +431,13 @@ func (agent *MetricsAgent) compressData(data []byte) (*bytes.Buffer, error) {
 	return &buffer, nil
 }
 
-// sendRequest sends an HTTP POST request with compressed, signed data.
-// endpoint: Server endpoint path (e.g., "/update/" or "/updates/").
-// body: Compressed and encrypt request body.
-// Returns error if request fails or server returns non-200 status.
-// Automatically adds required headers: Content-Type, Content-Encoding, Hash.
-func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) error {
+func (agent *MetricsAgent) prepareRequestBody(body *bytes.Buffer) (*bytes.Buffer, string, error) {
 	data := body.Bytes()
 
 	if agent.encryptor != nil {
 		encrypted, err := agent.encryptor.Encrypt(data)
 		if err != nil {
-			return fmt.Errorf("encrypt error: %w", err)
+			return nil, "", fmt.Errorf("encrypt error: %w", err)
 		}
 		body.Reset()
 		body.Write(encrypted)
@@ -450,6 +445,22 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 	}
 
 	sign := agent.signer.Sign(data)
+
+	return body, sign, nil
+}
+
+// sendRequest sends an HTTP POST request with compressed, signed data.
+// endpoint: Server endpoint path (e.g., "/update/" or "/updates/").
+// body: Compressed and encrypt request body.
+// Returns error if request fails or server returns non-200 status.
+// Automatically adds required headers: Content-Type, Content-Encoding, Hash.
+func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) error {
+
+	body, sign, err := agent.prepareRequestBody(body)
+
+	if err != nil {
+		return fmt.Errorf("prepare request body error: %w", err)
+	}
 
 	resp, err := agent.client.Post(
 		endpoint,
