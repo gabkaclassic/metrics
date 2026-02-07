@@ -14,8 +14,11 @@
 package config
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
 	"net/url"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -27,12 +30,13 @@ import (
 type (
 	// Server represents the full configuration of the metrics server.
 	Server struct {
-		Address string `env:"ADDRESS" envDefault:"localhost:8080"`
-		SignKey string `env:"KEY"`
-		Log     Log
-		Dump    Dump
-		DB      DB
-		Audit   Audit
+		Address        string `env:"ADDRESS" envDefault:"localhost:8080"`
+		SignKey        string `env:"KEY"`
+		Log            Log
+		Dump           Dump
+		DB             DB
+		Audit          Audit
+		PrivateKeyPath string `env:"CRYPTO_KEY"`
 	}
 	// Agent represents the configuration of the metrics agent.
 	Agent struct {
@@ -44,6 +48,7 @@ type (
 		SignKey        string `env:"KEY"`
 		RateLimit      int    `env:"RATE_LIMIT" envDefault:"5"`
 		BatchSize      int    `env:"BATCH_SIZE" envDefault:"100"`
+		PublicKeyPath  string `env:"CRYPTO_KEY"`
 	}
 	// DB contains database-related configuration.
 	DB struct {
@@ -78,6 +83,38 @@ type (
 		File string `env:"AUDIT_FILE"`
 		URL  string `env:"AUDIT_URL"`
 	}
+
+	// serverFileConfig represents JSON-based configuration for the metrics server.
+	//
+	// All fields are optional and map 1:1 to existing environment variables
+	// and command-line flags. Missing or zero-value fields must NOT override
+	// values provided by environment variables or flags.
+	//
+	// Duration values are expected to be valid Go duration strings
+	// (e.g. "1s", "5m", "1h").
+	serverFileConfig struct {
+		Address       string `json:"address"`
+		Restore       *bool  `json:"restore"`
+		StoreInterval string `json:"store_interval"`
+		StoreFile     string `json:"store_file"`
+		DatabaseDSN   string `json:"database_dsn"`
+		CryptoKeyPath string `json:"crypto_key"`
+	}
+
+	// agentFileConfig represents JSON-based configuration for the metrics agent.
+	//
+	// All fields are optional and map 1:1 to existing environment variables
+	// and command-line flags. Missing or zero-value fields must NOT override
+	// values provided by environment variables or flags.
+	//
+	// Duration values are expected to be valid Go duration strings
+	// (e.g. "1s", "5m", "1h").
+	agentFileConfig struct {
+		Address        string `json:"address"`
+		ReportInterval string `json:"report_interval"`
+		PollInterval   string `json:"poll_interval"`
+		CryptoKeyPath  string `json:"crypto_key"`
+	}
 )
 
 // ensureURL normalizes an address string into a valid URL.
@@ -105,6 +142,162 @@ func defineEnvParsers() map[reflect.Type]env.ParserFunc {
 	}
 }
 
+// getConfigPath resolves configuration file path from supported sources.
+//
+// Resolution order:
+//  1. CONFIG environment variable
+//  2. Command-line flags: -c, -config, -c=..., -config=...
+//
+// The function does not validate file existence.
+// Empty string means configuration file was not specified.
+func getConfigPath() string {
+	if v := os.Getenv("CONFIG"); v != "" {
+		return v
+	}
+
+	args := os.Args[1:]
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+
+		if a == "-c" || a == "-config" {
+			if i+1 < len(args) {
+				return args[i+1]
+			}
+			return ""
+		}
+
+		if strings.HasPrefix(a, "-c=") {
+			return strings.TrimPrefix(a, "-c=")
+		}
+
+		if strings.HasPrefix(a, "-config=") {
+			return strings.TrimPrefix(a, "-config=")
+		}
+	}
+
+	return ""
+}
+
+// loadServerFileConfig loads and parses server JSON configuration file.
+//
+// If the file does not exist, os.ErrNotExist should be returned.
+// If the file exists but cannot be parsed or contains invalid values,
+// a non-nil error must be returned.
+func loadServerFileConfig(path string) (*serverFileConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg serverFileConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+// loadAgentFileConfig loads and parses agent JSON configuration file.
+//
+// If the file does not exist, os.ErrNotExist should be returned.
+// If the file exists but cannot be parsed or contains invalid values,
+// a non-nil error must be returned.
+func loadAgentFileConfig(path string) (*agentFileConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg agentFileConfig
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+
+	return &cfg, nil
+}
+
+// applyServerFileConfig applies JSON configuration values to Server config.
+//
+// Only non-zero and explicitly set fields from serverFileConfig
+// must be applied. Existing values in cfg must not be overwritten
+// by zero-values from JSON.
+//
+// Duration fields must be parsed using time.ParseDuration.
+func applyServerFileConfig(cfg *Server, fc *serverFileConfig) error {
+	if fc == nil {
+		return nil
+	}
+
+	if fc.Address != "" {
+		cfg.Address = fc.Address
+	}
+
+	if fc.Restore != nil {
+		cfg.Dump.Restore = *fc.Restore
+	}
+
+	if fc.StoreInterval != "" {
+		d, err := time.ParseDuration(fc.StoreInterval)
+		if err != nil {
+			return err
+		}
+		cfg.Dump.StoreInterval = d
+	}
+
+	if fc.StoreFile != "" {
+		cfg.Dump.FileStoragePath = fc.StoreFile
+	}
+
+	if fc.DatabaseDSN != "" {
+		cfg.DB.DSN = fc.DatabaseDSN
+	}
+
+	if fc.CryptoKeyPath != "" {
+		cfg.PrivateKeyPath = fc.CryptoKeyPath
+	}
+
+	return nil
+}
+
+// applyAgentFileConfig applies JSON configuration values to Agent config.
+//
+// Only non-zero and explicitly set fields from agentFileConfig
+// must be applied. Existing values in cfg must not be overwritten
+// by zero-values from JSON.
+//
+// Duration fields must be parsed using time.ParseDuration.
+func applyAgentFileConfig(cfg *Agent, fc *agentFileConfig) error {
+	if fc == nil {
+		return nil
+	}
+
+	if fc.Address != "" {
+		cfg.Client.BaseURL = fc.Address
+	}
+
+	if fc.ReportInterval != "" {
+		d, err := time.ParseDuration(fc.ReportInterval)
+		if err != nil {
+			return err
+		}
+		cfg.ReportInterval = d
+	}
+
+	if fc.PollInterval != "" {
+		d, err := time.ParseDuration(fc.PollInterval)
+		if err != nil {
+			return err
+		}
+		cfg.PollInterval = d
+	}
+
+	if fc.CryptoKeyPath != "" {
+		cfg.PublicKeyPath = fc.CryptoKeyPath
+	}
+
+	return nil
+}
+
 // ParseServerConfig parses and returns server configuration.
 //
 // Configuration values are loaded from environment variables first,
@@ -119,11 +312,27 @@ func defineEnvParsers() map[reflect.Type]env.ParserFunc {
 func ParseServerConfig() (*Server, error) {
 	var cfg Server
 
+	configPath := getConfigPath()
+	if configPath != "" {
+		fc, err := loadServerFileConfig(configPath)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		if err == nil {
+			if err := applyServerFileConfig(&cfg, fc); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	parsers := defineEnvParsers()
 
 	if err := env.ParseWithOptions(&cfg, env.Options{FuncMap: parsers}); err != nil {
 		return nil, err
 	}
+
+	flag.String("c", "", "Path to file with config")
+	flag.String("config", "", "Path to file with config")
 
 	address := flag.String("a", cfg.Address, "HTTP server address")
 
@@ -146,6 +355,7 @@ func ParseServerConfig() (*Server, error) {
 	auditURL := flag.String("audit-url", cfg.Audit.URL, "Audit url")
 
 	signKey := flag.String("k", cfg.SignKey, "Key to verify requests bodies")
+	privateKeyPath := flag.String("crypto-key", cfg.PrivateKeyPath, "Path to private key to decrypt requests")
 
 	flag.Parse()
 
@@ -186,6 +396,8 @@ func ParseServerConfig() (*Server, error) {
 		case "audit-url":
 			cfg.Audit.URL = *auditURL
 
+		case "crypto-key":
+			cfg.PrivateKeyPath = *privateKeyPath
 		case "k":
 			cfg.SignKey = *signKey
 		}
@@ -206,11 +418,27 @@ func ParseServerConfig() (*Server, error) {
 func ParseAgentConfig() (*Agent, error) {
 	var cfg Agent
 
+	configPath := getConfigPath()
+	if configPath != "" {
+		fc, err := loadAgentFileConfig(configPath)
+		if err != nil && !errors.Is(err, os.ErrNotExist) {
+			return nil, err
+		}
+		if err == nil {
+			if err := applyAgentFileConfig(&cfg, fc); err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	parsers := defineEnvParsers()
 
 	if err := env.ParseWithOptions(&cfg, env.Options{FuncMap: parsers}); err != nil {
 		return nil, err
 	}
+
+	flag.String("c", "", "Path to file with config")
+	flag.String("config", "", "Path to file with config")
 
 	pollInterval := flag.Uint("p", uint(cfg.PollInterval.Seconds()), "Metrics polling interval (seconds)")
 	reportInterval := flag.Uint("r", uint(cfg.ReportInterval.Seconds()), "Metrics reporting interval (seconds)")
@@ -226,6 +454,7 @@ func ParseAgentConfig() (*Agent, error) {
 	logJSON := flag.Bool("log-json", cfg.Log.JSON, "Enable JSON output for logs")
 
 	signKey := flag.String("k", cfg.SignKey, "Key to sign requests bodies")
+	publicKeyPath := flag.String("crypto-key", cfg.PublicKeyPath, "Path to public key to encrypt requests")
 	rateLimit := flag.Int("l", cfg.RateLimit, "Rate limits to send metric")
 
 	flag.Parse()
@@ -259,6 +488,8 @@ func ParseAgentConfig() (*Agent, error) {
 
 		case "k":
 			cfg.SignKey = *signKey
+		case "crypto-key":
+			cfg.PublicKeyPath = *publicKeyPath
 		case "l":
 			cfg.RateLimit = *rateLimit
 		}

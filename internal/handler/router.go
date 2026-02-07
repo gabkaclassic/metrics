@@ -16,7 +16,8 @@ type RouterConfiguration struct {
 
 	// SignKey is the secret key used for request signature verification.
 	// If empty, signature verification middleware is disabled.
-	SignKey string
+	SignKey        string
+	PrivateKeyPath string
 }
 
 // SetupRouter configures and returns a fully initialized HTTP router with all middleware.
@@ -41,7 +42,7 @@ type RouterConfiguration struct {
 //   - POST /value/   - JSON metric retrieval
 //   - POST /update/{type}/{id}/{value} - Plain text metric update
 //   - GET  /value/{type}/{id} - Plain text metric retrieval
-func SetupRouter(config *RouterConfiguration) http.Handler {
+func SetupRouter(config *RouterConfiguration) (http.Handler, error) {
 
 	router := chi.NewRouter()
 
@@ -53,9 +54,15 @@ func SetupRouter(config *RouterConfiguration) http.Handler {
 	// Ping endpoint
 	router.Get("/ping", func(w http.ResponseWriter, r *http.Request) {})
 
-	setupMetricsRouter(router, config.MetricsHandler, middleware.Decompress(), middleware.SignVerify(config.SignKey))
+	decryptMiddleware, err := middleware.Decrypt(config.PrivateKeyPath)
 
-	return router
+	if err != nil {
+		return nil, err
+	}
+
+	setupMetricsRouter(router, config.MetricsHandler, middleware.Decompress(), middleware.SignVerify(config.SignKey), decryptMiddleware)
+
+	return router, nil
 }
 
 // setupMetricsRouter configures all metrics-related routes with appropriate middleware.
@@ -76,6 +83,7 @@ func setupMetricsRouter(
 	handler *MetricsHandler,
 	decompressMiddleware func(handler http.Handler) http.Handler,
 	signVerifyMiddleware func(handler http.Handler) http.Handler,
+	decryptMiddleware func(handler http.Handler) http.Handler,
 ) {
 	// Metrics
 	router.Get(
@@ -100,6 +108,7 @@ func setupMetricsRouter(
 			}),
 			middleware.WithContentType(middleware.JSON),
 			decompressMiddleware,
+			decryptMiddleware,
 			signVerifyMiddleware,
 		),
 	)
@@ -113,6 +122,7 @@ func setupMetricsRouter(
 			}),
 			middleware.WithContentType(middleware.JSON),
 			decompressMiddleware,
+			decryptMiddleware,
 			signVerifyMiddleware,
 		),
 	)

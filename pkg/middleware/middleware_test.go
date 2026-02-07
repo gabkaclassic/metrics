@@ -4,10 +4,19 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/binary"
+	"encoding/pem"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -657,6 +666,117 @@ func TestDecompressMiddleware(t *testing.T) {
 
 			if tt.expectNextCall && tt.expectBody != "" {
 				assert.Equal(t, tt.expectBody, string(receivedBody))
+			}
+		})
+	}
+}
+
+func encryptForTest(t *testing.T, pub *rsa.PublicKey, plain []byte) []byte {
+	t.Helper()
+
+	aesKey := make([]byte, 32)
+	_, err := rand.Read(aesKey)
+	assert.NoError(t, err)
+
+	block, _ := aes.NewCipher(aesKey)
+	gcm, _ := cipher.NewGCM(block)
+	nonce := make([]byte, gcm.NonceSize())
+	rand.Read(nonce)
+
+	ciphertext := gcm.Seal(nil, nonce, plain, nil)
+	encKey, err := rsa.EncryptPKCS1v15(rand.Reader, pub, aesKey)
+	assert.NoError(t, err)
+
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, uint16(len(encKey)))
+	buf.Write(encKey)
+	buf.Write(nonce)
+	buf.Write(ciphertext)
+
+	return buf.Bytes()
+}
+
+func writeTestRSAKey(t *testing.T) (privPath string, pub *rsa.PublicKey) {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	assert.NoError(t, err)
+
+	privBytes := x509.MarshalPKCS1PrivateKey(key)
+	privPem := pem.EncodeToMemory(&pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: privBytes,
+	})
+
+	dir := t.TempDir()
+	privPath = filepath.Join(dir, "private.pem")
+	assert.NoError(t, os.WriteFile(privPath, privPem, 0600))
+
+	return privPath, &key.PublicKey
+}
+
+func TestDecryptMiddleware(t *testing.T) {
+	privPath, pub := writeTestRSAKey(t)
+
+	tests := []struct {
+		name           string
+		keyPath        string
+		body           []byte
+		expectStatus   int
+		expectBody     string
+		expectNextCall bool
+	}{
+		{
+			name:           "no key passthrough",
+			keyPath:        "",
+			body:           []byte("raw"),
+			expectStatus:   http.StatusOK,
+			expectBody:     "raw",
+			expectNextCall: true,
+		},
+		{
+			name:           "valid encrypted payload",
+			keyPath:        privPath,
+			body:           encryptForTest(t, pub, []byte("secret")),
+			expectStatus:   http.StatusOK,
+			expectBody:     "secret",
+			expectNextCall: true,
+		},
+		{
+			name:           "broken encrypted payload",
+			keyPath:        privPath,
+			body:           []byte("garbage"),
+			expectStatus:   http.StatusBadRequest,
+			expectNextCall: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+			var received []byte
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				received, _ = io.ReadAll(r.Body)
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mwFactory, err := Decrypt(tt.keyPath)
+			assert.NoError(t, err)
+
+			mw := mwFactory(next)
+
+			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader(tt.body))
+			rr := httptest.NewRecorder()
+
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			assert.Equal(t, tt.expectNextCall, nextCalled)
+
+			if tt.expectNextCall {
+				assert.Equal(t, tt.expectBody, string(received))
 			}
 		})
 	}
