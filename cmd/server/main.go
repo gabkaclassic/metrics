@@ -66,7 +66,7 @@ func run() error {
 	}
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()
 
 	var metricsRepository repository.MetricsRepository
