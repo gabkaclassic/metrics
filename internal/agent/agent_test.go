@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/pkg/crypt"
 	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
@@ -80,6 +81,70 @@ func TestMetricsAgent_Poll(t *testing.T) {
 		assert.Equal(t, []metric.Metric{m1, m2}, batch)
 	default:
 		t.Fatal("expected metrics to be queued for reporting")
+	}
+}
+func TestMetricsAgent_prepareRequestBody(t *testing.T) {
+	tests := []struct {
+		name          string
+		body          string
+		setupMocks    func(enc *crypt.MockEncryptor, sig *hash.MockSigner)
+		wantEncryptor bool
+		wantBody      string
+		wantSign      string
+		wantErrPart   string
+	}{
+		{
+			name: "with encryption",
+			body: "plain",
+			setupMocks: func(enc *crypt.MockEncryptor, sig *hash.MockSigner) {
+				enc.EXPECT().
+					Encrypt([]byte("plain")).
+					Return([]byte("encrypted"), nil)
+				sig.EXPECT().
+					Sign([]byte("encrypted")).
+					Return("sig")
+			},
+			wantBody: "encrypted",
+			wantSign: "sig",
+		},
+		{
+			name: "encryption error",
+			body: "plain",
+			setupMocks: func(enc *crypt.MockEncryptor, sig *hash.MockSigner) {
+				enc.EXPECT().
+					Encrypt([]byte("plain")).
+					Return(nil, errors.New("fail"))
+			},
+			wantErrPart: "encrypt error: fail",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := bytes.NewBufferString(tt.body)
+
+			encryptor := crypt.NewMockEncryptor(t)
+			signer := hash.NewMockSigner(t)
+
+			tt.setupMocks(encryptor, signer)
+
+			agent := &MetricsAgent{
+				encryptor: encryptor,
+				signer:    signer,
+			}
+
+			resBody, sign, err := agent.prepareRequestBody(body)
+
+			if tt.wantErrPart != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrPart)
+				return
+			}
+
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantBody, resBody.String())
+			assert.Equal(t, tt.wantSign, sign)
+		})
 	}
 }
 

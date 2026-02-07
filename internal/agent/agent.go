@@ -64,7 +64,7 @@ type MetricsAgent struct {
 	jobCh          chan []metric.Metric
 	wg             sync.WaitGroup
 	batchSize      int
-	encryptor      *crypt.Encryptor
+	encryptor      crypt.Encryptor
 }
 
 // NewAgent creates and initializes a new metrics collection agent.
@@ -133,7 +133,7 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 	agent.signer = signer
 
 	if len(publicKeyPath) > 0 {
-		agent.encryptor, err = crypt.NewEncryptor(publicKeyPath)
+		agent.encryptor, err = crypt.NewX509Encryptor(publicKeyPath)
 
 		if err != nil {
 			return nil, err
@@ -431,6 +431,11 @@ func (agent *MetricsAgent) compressData(data []byte) (*bytes.Buffer, error) {
 	return &buffer, nil
 }
 
+// prepareRequestBody prepares request payload before sending.
+// body: Request body buffer with raw (already compressed) data.
+// If encryptor is set, body is encrypted in-place.
+// Always signs final payload and returns signature.
+// Returns updated body, signature string, or error on encryption failure.
 func (agent *MetricsAgent) prepareRequestBody(body *bytes.Buffer) (*bytes.Buffer, string, error) {
 	data := body.Bytes()
 

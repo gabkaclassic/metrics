@@ -33,3 +33,9 @@ packages:
   github.com/gabkaclassic/metrics/internal/storage:
     config:
       all: true
+  github.com/gabkaclassic/metrics/pkg/crypt:
+    config:
+      all: true
+  github.com/gabkaclassic/metrics/pkg/hash:
+    config:
+      all: true

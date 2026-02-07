@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewEncryptor(t *testing.T) {
+func TestNewX509Encryptor(t *testing.T) {
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T) string
@@ -94,7 +94,7 @@ func TestNewEncryptor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t)
-			enc, err := NewEncryptor(path)
+			enc, err := NewX509Encryptor(path)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -129,7 +129,7 @@ func TestEncrypt(t *testing.T) {
 	priv, err := rsa.GenerateKey(rand.Reader, 2048)
 	assert.NoError(t, err)
 
-	encryptor := &Encryptor{
+	encryptor := &X509Encryptor{
 		publicKey: &priv.PublicKey,
 	}
 

@@ -16,15 +16,23 @@ import (
 
 const gcmSize = 12
 
-// Decryptor handles decryption of hybrid-encrypted data.
-type Decryptor struct {
-	privateKey *rsa.PrivateKey
-}
+type (
 
-// NewDecryptor creates a Decryptor from RSA private key file.
+	// Decryptor - interface for any decryptor
+	Decryptor interface {
+		Decrypt(payload []byte) ([]byte, error)
+	}
+
+	// X509Decryptor handles decryption of hybrid-encrypted data.
+	X509Decryptor struct {
+		privateKey *rsa.PrivateKey
+	}
+)
+
+// NewX509Decryptor creates a X509Decryptor from RSA private key file.
 //
 // Key file must be in PEM format with PKCS#1 encoding.
-func NewDecryptor(privateKeyPath string) (*Decryptor, error) {
+func NewX509Decryptor(privateKeyPath string) (*X509Decryptor, error) {
 
 	keyBytes, err := os.ReadFile(privateKeyPath)
 	if err != nil {
@@ -41,7 +49,7 @@ func NewDecryptor(privateKeyPath string) (*Decryptor, error) {
 		return nil, err
 	}
 
-	return &Decryptor{
+	return &X509Decryptor{
 		privateKey: privateKey,
 	}, nil
 }
@@ -49,7 +57,7 @@ func NewDecryptor(privateKeyPath string) (*Decryptor, error) {
 // Decrypt decrypts hybrid-encrypted payload.
 //
 // Expected format: [2-byte key length][RSA-encrypted AES key][12-byte nonce][AES-GCM ciphertext]
-func (d *Decryptor) Decrypt(payload []byte) ([]byte, error) {
+func (d *X509Decryptor) Decrypt(payload []byte) ([]byte, error) {
 	buf := bytes.NewReader(payload)
 
 	var keyLen uint16

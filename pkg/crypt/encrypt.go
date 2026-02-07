@@ -15,15 +15,22 @@ import (
 
 const aesKeyLen = 32
 
-// Encryptor handles hybrid encryption of data.
-type Encryptor struct {
-	publicKey *rsa.PublicKey
-}
+type (
+	// Encryptor - interface for any encryptor
+	Encryptor interface {
+		Encrypt(plain []byte) ([]byte, error)
+	}
 
-// NewEncryptor creates an Encryptor from X.509 certificate file.
+	// X509Encryptor handles hybrid encryption of data.
+	X509Encryptor struct {
+		publicKey *rsa.PublicKey
+	}
+)
+
+// NewX509Encryptor creates an X509Encryptor from X.509 certificate file.
 //
 // Certificate file must be in PEM format containing RSA public key.
-func NewEncryptor(publicKeyPath string) (*Encryptor, error) {
+func NewX509Encryptor(publicKeyPath string) (*X509Encryptor, error) {
 	certificateBytes, err := os.ReadFile(publicKeyPath)
 	if err != nil {
 		return nil, err
@@ -38,7 +45,7 @@ func NewEncryptor(publicKeyPath string) (*Encryptor, error) {
 	}
 
 	if publicKey, ok := certificate.PublicKey.(*rsa.PublicKey); ok {
-		return &Encryptor{publicKey: publicKey}, nil
+		return &X509Encryptor{publicKey: publicKey}, nil
 	}
 
 	return nil, errors.New("invalid public key type")
@@ -47,7 +54,7 @@ func NewEncryptor(publicKeyPath string) (*Encryptor, error) {
 // Encrypt encrypts data using hybrid RSA/AES-GCM scheme.
 //
 // Output format: [2-byte key length][RSA-encrypted AES key][nonce][AES-GCM ciphertext]
-func (e *Encryptor) Encrypt(plain []byte) ([]byte, error) {
+func (e *X509Encryptor) Encrypt(plain []byte) ([]byte, error) {
 	aesKey := make([]byte, aesKeyLen)
 	if _, err := rand.Read(aesKey); err != nil {
 		return nil, err

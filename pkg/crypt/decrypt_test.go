@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewDecryptor(t *testing.T) {
+func TestNewX509Decryptor(t *testing.T) {
 	tests := []struct {
 		name        string
 		setup       func(t *testing.T) string
@@ -76,7 +76,7 @@ func TestNewDecryptor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t)
-			dec, err := NewDecryptor(path)
+			dec, err := NewX509Decryptor(path)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -154,7 +154,7 @@ func TestDecrypt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			path := tt.setup(t)
-			dec, err := NewDecryptor(path)
+			dec, err := NewX509Decryptor(path)
 
 			if tt.expectError {
 				assert.Error(t, err)

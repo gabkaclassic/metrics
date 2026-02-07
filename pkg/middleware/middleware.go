@@ -181,10 +181,10 @@ func Decompress() middleware {
 // On decryption failure responds with HTTP 400 Bad Request.
 func Decrypt(privateKeyPath string) (func(http.Handler) http.Handler, error) {
 
-	var decryptor *crypt.Decryptor
+	var decryptor *crypt.X509Decryptor
 	var err error
 	if len(privateKeyPath) > 0 {
-		decryptor, err = crypt.NewDecryptor(privateKeyPath)
+		decryptor, err = crypt.NewX509Decryptor(privateKeyPath)
 
 		if err != nil {
 			return nil, err
