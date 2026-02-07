@@ -1,0 +1,8 @@
+{
+  "crypto_key": "./private.pem",
+  "database_dsn": "postgres://user:password@localhost:5432/metrics?sslmode=disable",
+  "address": "localhost:8080",
+  "restore": false,
+  "store_interval": "30s",
+  "store_file": "/tmp/metrics"
+}
