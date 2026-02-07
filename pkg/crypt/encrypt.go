@@ -36,8 +36,12 @@ func NewEncryptor(publicKeyPath string) (*Encryptor, error) {
 	if err != nil {
 		return nil, err
 	}
-	publicKey := certificate.PublicKey.(*rsa.PublicKey)
-	return &Encryptor{publicKey: publicKey}, nil
+
+	if publicKey, ok := certificate.PublicKey.(*rsa.PublicKey); ok {
+		return &Encryptor{publicKey: publicKey}, nil
+	}
+
+	return nil, errors.New("invalid public key type")
 }
 
 // Encrypt encrypts data using hybrid RSA/AES-GCM scheme.
@@ -49,8 +53,18 @@ func (e *Encryptor) Encrypt(plain []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	block, _ := aes.NewCipher(aesKey)
-	gcm, _ := cipher.NewGCM(block)
+	block, err := aes.NewCipher(aesKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+
+	if err != nil {
+		return nil, err
+	}
+
 	nonce := make([]byte, gcm.NonceSize())
 	rand.Read(nonce)
 	ciphertext := gcm.Seal(nil, nonce, plain, nil)

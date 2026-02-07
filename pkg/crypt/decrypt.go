@@ -33,7 +33,7 @@ func NewDecryptor(privateKeyPath string) (*Decryptor, error) {
 
 	privateKeyPemBlock, _ := pem.Decode(keyBytes)
 	if privateKeyPemBlock == nil {
-		return nil, errors.New("certificate not found")
+		return nil, errors.New("private pem key not found")
 	}
 
 	privateKey, err := x509.ParsePKCS1PrivateKey(privateKeyPemBlock.Bytes)
@@ -72,9 +72,24 @@ func (d *Decryptor) Decrypt(payload []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	ciphertext, _ := io.ReadAll(buf)
-	block, _ := aes.NewCipher(aesKey)
-	gcm, _ := cipher.NewGCM(block)
+	ciphertext, err := io.ReadAll(buf)
+
+	if err != nil {
+		return nil, err
+	}
+
+	block, err := aes.NewCipher(aesKey)
+
+	if err != nil {
+		return nil, err
+	}
+
+	gcm, err := cipher.NewGCM(block)
+
+	if err != nil {
+		return nil, err
+	}
+
 	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, err
