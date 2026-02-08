@@ -14,6 +14,161 @@ func resetFlags() {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 }
 
+func TestGetConfigPath(t *testing.T) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	origEnv := os.Getenv("CONFIG")
+	defer func() {
+		if origEnv == "" {
+			os.Unsetenv("CONFIG")
+		} else {
+			os.Setenv("CONFIG", origEnv)
+		}
+	}()
+
+	tests := []struct {
+		name     string
+		env      string
+		args     []string
+		expected string
+	}{
+		{
+			name:     "from env",
+			env:      "/tmp/config.json",
+			args:     []string{"app"},
+			expected: "/tmp/config.json",
+		},
+		{
+			name:     "from -c flag",
+			env:      "",
+			args:     []string{"app", "-c", "/tmp/cfg.json"},
+			expected: "/tmp/cfg.json",
+		},
+		{
+			name:     "from -config flag",
+			env:      "",
+			args:     []string{"app", "-config", "/tmp/cfg.json"},
+			expected: "/tmp/cfg.json",
+		},
+		{
+			name:     "from -c= form",
+			env:      "",
+			args:     []string{"app", "-c=/tmp/cfg.json"},
+			expected: "/tmp/cfg.json",
+		},
+		{
+			name:     "not specified",
+			env:      "",
+			args:     []string{"app"},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.env != "" {
+				os.Setenv("CONFIG", tt.env)
+			} else {
+				os.Unsetenv("CONFIG")
+			}
+			os.Args = tt.args
+
+			result := getConfigPath()
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestLoadServerFileConfig(t *testing.T) {
+	data := `{
+		"address": "localhost:8080",
+		"restore": true,
+		"store_interval": "1s",
+		"store_file": "/tmp/file.db",
+		"database_dsn": "dsn",
+		"crypto_key": "/tmp/key.pem"
+	}`
+
+	f, err := os.CreateTemp("", "server*.json")
+	assert.NoError(t, err)
+	defer os.Remove(f.Name())
+	_, _ = f.WriteString(data)
+	_ = f.Close()
+
+	cfg, err := loadServerFileConfig(f.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, "localhost:8080", cfg.Address)
+	assert.NotNil(t, cfg.Restore)
+	assert.True(t, *cfg.Restore)
+	assert.Equal(t, "1s", cfg.StoreInterval)
+	assert.Equal(t, "/tmp/file.db", cfg.StoreFile)
+	assert.Equal(t, "dsn", cfg.DatabaseDSN)
+	assert.Equal(t, "/tmp/key.pem", cfg.CryptoKeyPath)
+}
+
+func TestApplyServerFileConfig(t *testing.T) {
+	restore := true
+	fc := &serverFileConfig{
+		Address:       "localhost:9000",
+		Restore:       &restore,
+		StoreInterval: "2s",
+		StoreFile:     "/tmp/new.db",
+		DatabaseDSN:   "new-dsn",
+		CryptoKeyPath: "/tmp/key.pem",
+	}
+
+	var cfg Server
+	err := applyServerFileConfig(&cfg, fc)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "localhost:9000", cfg.Address)
+	assert.True(t, cfg.Dump.Restore)
+	assert.Equal(t, 2*time.Second, cfg.Dump.StoreInterval)
+	assert.Equal(t, "/tmp/new.db", cfg.Dump.FileStoragePath)
+	assert.Equal(t, "new-dsn", cfg.DB.DSN)
+	assert.Equal(t, "/tmp/key.pem", cfg.PrivateKeyPath)
+}
+
+func TestLoadAgentFileConfig(t *testing.T) {
+	data := `{
+		"address": "localhost:8080",
+		"report_interval": "1s",
+		"poll_interval": "500ms",
+		"crypto_key": "/tmp/key.pem"
+	}`
+
+	f, err := os.CreateTemp("", "agent*.json")
+	assert.NoError(t, err)
+	defer os.Remove(f.Name())
+	_, _ = f.WriteString(data)
+	_ = f.Close()
+
+	cfg, err := loadAgentFileConfig(f.Name())
+	assert.NoError(t, err)
+	assert.Equal(t, "localhost:8080", cfg.Address)
+	assert.Equal(t, "1s", cfg.ReportInterval)
+	assert.Equal(t, "500ms", cfg.PollInterval)
+	assert.Equal(t, "/tmp/key.pem", cfg.CryptoKeyPath)
+}
+
+func TestApplyAgentFileConfig(t *testing.T) {
+	fc := &agentFileConfig{
+		Address:        "localhost:9000",
+		ReportInterval: "2s",
+		PollInterval:   "1s",
+		CryptoKeyPath:  "/tmp/pub.pem",
+	}
+
+	var cfg Agent
+	err := applyAgentFileConfig(&cfg, fc)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "localhost:9000", cfg.Client.BaseURL)
+	assert.Equal(t, 2*time.Second, cfg.ReportInterval)
+	assert.Equal(t, 1*time.Second, cfg.PollInterval)
+	assert.Equal(t, "/tmp/pub.pem", cfg.PublicKeyPath)
+}
+
 func TestEnsureURL(t *testing.T) {
 	tests := []struct {
 		name     string

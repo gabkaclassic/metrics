@@ -28,4 +28,4 @@ build
 
 *.log
 
-audit
+*.pem

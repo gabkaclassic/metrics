@@ -28,6 +28,7 @@ import (
 	"compress/gzip"
 
 	models "github.com/gabkaclassic/metrics/internal/model"
+	"github.com/gabkaclassic/metrics/pkg/crypt"
 	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
@@ -63,6 +64,7 @@ type MetricsAgent struct {
 	jobCh          chan []metric.Metric
 	wg             sync.WaitGroup
 	batchSize      int
+	encryptor      crypt.Encryptor
 }
 
 // NewAgent creates and initializes a new metrics collection agent.
@@ -82,7 +84,8 @@ type MetricsAgent struct {
 //   - Go runtime metrics
 //   - System metrics (CPU, memory)
 //   - Request signer for secure communication
-func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, rateLimit int, batchSize int) (*MetricsAgent, error) {
+//   - Request encryptor for requests
+func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, publicKeyPath string, rateLimit int, batchSize int) (*MetricsAgent, error) {
 	metrics := []metric.Metric{
 		// Counters
 		&metric.PollCount{},
@@ -128,6 +131,16 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 
 	signer := hash.NewSHA256Signer(signKey)
 	agent.signer = signer
+
+	if len(publicKeyPath) > 0 {
+		agent.encryptor, err = crypt.NewX509Encryptor(publicKeyPath)
+
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		agent.encryptor = nil
+	}
 
 	return agent, nil
 }
@@ -418,14 +431,41 @@ func (agent *MetricsAgent) compressData(data []byte) (*bytes.Buffer, error) {
 	return &buffer, nil
 }
 
+// prepareRequestBody prepares request payload before sending.
+// body: Request body buffer with raw (already compressed) data.
+// If encryptor is set, body is encrypted in-place.
+// Always signs final payload and returns signature.
+// Returns updated body, signature string, or error on encryption failure.
+func (agent *MetricsAgent) prepareRequestBody(body *bytes.Buffer) (*bytes.Buffer, string, error) {
+	data := body.Bytes()
+
+	if agent.encryptor != nil {
+		encrypted, err := agent.encryptor.Encrypt(data)
+		if err != nil {
+			return nil, "", fmt.Errorf("encrypt error: %w", err)
+		}
+		body.Reset()
+		body.Write(encrypted)
+		data = encrypted
+	}
+
+	sign := agent.signer.Sign(data)
+
+	return body, sign, nil
+}
+
 // sendRequest sends an HTTP POST request with compressed, signed data.
 // endpoint: Server endpoint path (e.g., "/update/" or "/updates/").
-// body: Compressed request body.
+// body: Compressed and encrypt request body.
 // Returns error if request fails or server returns non-200 status.
 // Automatically adds required headers: Content-Type, Content-Encoding, Hash.
 func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) error {
 
-	sign := agent.signer.Sign(body.Bytes())
+	body, sign, err := agent.prepareRequestBody(body)
+
+	if err != nil {
+		return fmt.Errorf("prepare request body error: %w", err)
+	}
 
 	resp, err := agent.client.Post(
 		endpoint,
@@ -438,7 +478,6 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 			},
 		},
 	)
-
 	if err != nil {
 		return fmt.Errorf("send request error: %w", err)
 	}
@@ -446,25 +485,16 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 
 	if resp.StatusCode != http.StatusOK {
 		responseBody, err := io.ReadAll(resp.Body)
-
 		if err != nil {
 			return err
 		}
-
 		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(responseBody))
 	}
-
 	responseBody, err := io.ReadAll(resp.Body)
-
 	if err != nil {
 		return err
 	}
-
-	slog.Info("Request completed successfully",
-		slog.String("endpoint", endpoint),
-		slog.String("response", string(responseBody)),
-	)
-
+	slog.Info("Request completed successfully", slog.String("endpoint", endpoint), slog.String("response", string(responseBody)))
 	return nil
 }
 
