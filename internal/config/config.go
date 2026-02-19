@@ -37,6 +37,7 @@ type (
 		DB             DB
 		Audit          Audit
 		PrivateKeyPath string `env:"CRYPTO_KEY"`
+		TrustedCIDR    string `env:"TRUSTED_SUBNET"`
 	}
 	// Agent represents the configuration of the metrics agent.
 	Agent struct {
@@ -99,6 +100,7 @@ type (
 		StoreFile     string `json:"store_file"`
 		DatabaseDSN   string `json:"database_dsn"`
 		CryptoKeyPath string `json:"crypto_key"`
+		TrustedCIDR   string `json:"trusted_subnet"`
 	}
 
 	// agentFileConfig represents JSON-based configuration for the metrics agent.
@@ -357,6 +359,8 @@ func ParseServerConfig() (*Server, error) {
 	signKey := flag.String("k", cfg.SignKey, "Key to verify requests bodies")
 	privateKeyPath := flag.String("crypto-key", cfg.PrivateKeyPath, "Path to private key to decrypt requests")
 
+	trustedCIDR := flag.String("t", cfg.TrustedCIDR, "Trusted subnet for agents")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
@@ -400,6 +404,9 @@ func ParseServerConfig() (*Server, error) {
 			cfg.PrivateKeyPath = *privateKeyPath
 		case "k":
 			cfg.SignKey = *signKey
+
+		case "t":
+			cfg.TrustedCIDR = *trustedCIDR
 		}
 	})
 
