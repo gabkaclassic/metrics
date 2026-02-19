@@ -16,8 +16,15 @@ type RouterConfiguration struct {
 
 	// SignKey is the secret key used for request signature verification.
 	// If empty, signature verification middleware is disabled.
-	SignKey        string
+	SignKey string
+
+	// PrivateKeyPath is the path to file with private key.
+	// If empty, decrypt middleware is disabled.
 	PrivateKeyPath string
+
+	// TrustedCIDR is CIDR with trusted subnet.
+	// If empty, middleware to check X=Real-IP header is disabled.
+	TrustedCIDR string
 }
 
 // SetupRouter configures and returns a fully initialized HTTP router with all middleware.
@@ -46,6 +53,12 @@ func SetupRouter(config *RouterConfiguration) (http.Handler, error) {
 
 	router := chi.NewRouter()
 
+	trustAddressMiddleware, err := middleware.TrustAddress(config.TrustedCIDR)
+
+	if err != nil {
+		return nil, err
+	}
+
 	router.Use(
 		middleware.Logger,
 		middleware.AuditContext,
@@ -60,7 +73,7 @@ func SetupRouter(config *RouterConfiguration) (http.Handler, error) {
 		return nil, err
 	}
 
-	setupMetricsRouter(router, config.MetricsHandler, middleware.Decompress(), middleware.SignVerify(config.SignKey), decryptMiddleware)
+	setupMetricsRouter(router, config.MetricsHandler, middleware.Decompress(), middleware.SignVerify(config.SignKey), decryptMiddleware, trustAddressMiddleware)
 
 	return router, nil
 }
@@ -84,6 +97,7 @@ func setupMetricsRouter(
 	decompressMiddleware func(handler http.Handler) http.Handler,
 	signVerifyMiddleware func(handler http.Handler) http.Handler,
 	decryptMiddleware func(handler http.Handler) http.Handler,
+	trustAddressMiddleware func(handler http.Handler) http.Handler,
 ) {
 	// Metrics
 	router.Get(
@@ -102,6 +116,7 @@ func setupMetricsRouter(
 		"/update/",
 		middleware.Wrap(
 			http.HandlerFunc(handler.SaveJSON),
+			trustAddressMiddleware,
 			middleware.RequireContentType(middleware.JSON),
 			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
 				middleware.JSON: middleware.GZIP,
@@ -116,6 +131,7 @@ func setupMetricsRouter(
 		"/updates/",
 		middleware.Wrap(
 			http.HandlerFunc(handler.SaveAll),
+			trustAddressMiddleware,
 			middleware.RequireContentType(middleware.JSON),
 			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
 				middleware.JSON: middleware.GZIP,
@@ -130,6 +146,7 @@ func setupMetricsRouter(
 		"/value/",
 		middleware.Wrap(
 			http.HandlerFunc(handler.GetJSON),
+			trustAddressMiddleware,
 			middleware.RequireContentType(middleware.JSON),
 			middleware.Compress(map[middleware.ContentType]middleware.CompressType{
 				middleware.JSON: middleware.GZIP,
@@ -142,6 +159,7 @@ func setupMetricsRouter(
 		"/update/{type}/{id}/{value}",
 		middleware.Wrap(
 			http.HandlerFunc(handler.Save),
+			trustAddressMiddleware,
 			middleware.WithContentType(middleware.TEXT),
 			decompressMiddleware,
 		),

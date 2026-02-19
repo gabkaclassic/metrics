@@ -113,7 +113,7 @@ func run() error {
 		return fmt.Errorf("failed to create auditor: %w", err)
 	}
 
-	router, err := setupRouter(&metricsRepository, cfg.SignKey, cfg.PrivateKeyPath, auditor)
+	router, err := setupRouter(&metricsRepository, cfg.SignKey, cfg.PrivateKeyPath, cfg.TrustedCIDR, auditor)
 	if err != nil {
 		return fmt.Errorf("failed to setup HTTP router: %w", err)
 	}
@@ -142,7 +142,7 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(metricsRepository *repository.MetricsRepository, signKey string, privateKeyPath string, auditor audit.Auditor) (http.Handler, error) {
+func setupRouter(metricsRepository *repository.MetricsRepository, signKey string, privateKeyPath string, tructedCIDR string, auditor audit.Auditor) (http.Handler, error) {
 
 	// Metrics
 	metricsService, err := service.NewMetricsService(*metricsRepository, auditor)
@@ -161,5 +161,6 @@ func setupRouter(metricsRepository *repository.MetricsRepository, signKey string
 		MetricsHandler: metricsHandler,
 		SignKey:        signKey,
 		PrivateKeyPath: privateKeyPath,
+		TrustedCIDR:    tructedCIDR,
 	})
 }

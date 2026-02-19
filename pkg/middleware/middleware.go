@@ -15,6 +15,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -252,6 +253,57 @@ func RequireContentType(ct ContentType) middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// TrustAddress returns a middleware that restricts access by client IP address.
+//
+// The middleware extracts client IP from the "X-Real-IP" header and checks
+// whether it belongs to the provided CIDR range.
+//
+// If CIDR is empty, the middleware allows all requests.
+// If CIDR parsing fails, an error is returned.
+//
+// Requests with missing, invalid, or non-matching IP are rejected with 403 status.
+
+func TrustAddress(CIDR string) (middleware, error) {
+
+	if len(CIDR) == 0 {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}, nil
+
+	}
+
+	_, trustedCIDR, err := net.ParseCIDR(CIDR)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rawIP := r.Header.Get("X-Real-IP")
+
+			ip := net.ParseIP(rawIP)
+
+			if ip == nil || !trustedCIDR.Contains(ip) {
+
+				requestID := r.Header.Get("X-Request-ID")
+
+				slog.Info("Forbidden by untrusted IP",
+					slog.String("id", requestID),
+					slog.Any("IP", ip),
+				)
+				err := api.Forbidden("")
+				api.RespondError(w, err)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}, nil
 }
 
 // Logger logs incoming HTTP requests and their processing time.
