@@ -158,6 +158,84 @@ func TestRequireContentType(t *testing.T) {
 	}
 }
 
+func TestTrustAddress(t *testing.T) {
+	tests := []struct {
+		name           string
+		cidr           string
+		headerIP       string
+		expectStatus   int
+		expectNextCall bool
+		expectErr      bool
+	}{
+		{
+			name:           "empty cidr allows all",
+			cidr:           "",
+			headerIP:       "",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:           "valid ip inside cidr passes",
+			cidr:           "192.168.1.0/24",
+			headerIP:       "192.168.1.10",
+			expectStatus:   http.StatusOK,
+			expectNextCall: true,
+		},
+		{
+			name:           "ip outside cidr forbidden",
+			cidr:           "192.168.1.0/24",
+			headerIP:       "10.0.0.1",
+			expectStatus:   http.StatusForbidden,
+			expectNextCall: false,
+		},
+		{
+			name:           "invalid ip forbidden",
+			cidr:           "192.168.1.0/24",
+			headerIP:       "not-an-ip",
+			expectStatus:   http.StatusForbidden,
+			expectNextCall: false,
+		},
+		{
+			name:      "invalid cidr returns error",
+			cidr:      "invalid-cidr",
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextCalled := false
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				nextCalled = true
+				w.WriteHeader(http.StatusOK)
+			})
+
+			mwFactory, err := TrustAddress(tt.cidr)
+
+			if tt.expectErr {
+				assert.Error(t, err)
+				return
+			}
+
+			assert.NoError(t, err)
+
+			mw := mwFactory(next)
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tt.headerIP != "" {
+				req.Header.Set("X-Real-IP", tt.headerIP)
+			}
+
+			rr := httptest.NewRecorder()
+			mw.ServeHTTP(rr, req)
+
+			assert.Equal(t, tt.expectStatus, rr.Code)
+			assert.Equal(t, tt.expectNextCall, nextCalled)
+		})
+	}
+}
+
 func TestWithContentType(t *testing.T) {
 	tests := []struct {
 		name         string
