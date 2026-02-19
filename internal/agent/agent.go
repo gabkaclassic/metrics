@@ -17,6 +17,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"runtime"
 	"sync"
@@ -65,6 +66,7 @@ type MetricsAgent struct {
 	wg             sync.WaitGroup
 	batchSize      int
 	encryptor      crypt.Encryptor
+	ip             string
 }
 
 // NewAgent creates and initializes a new metrics collection agent.
@@ -98,6 +100,12 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 	stats := &runtime.MemStats{}
 	metrics = append(metrics, metric.RuntimeMetrics(stats)...)
 
+	hostIP, err := getHostIP()
+
+	if err != nil {
+		return nil, err
+	}
+
 	agent := &MetricsAgent{
 		client:         client,
 		stats:          stats,
@@ -106,6 +114,7 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 		rateLimit:      rateLimit,
 		jobCh:          make(chan []metric.Metric, 1),
 		batchSize:      batchSize,
+		ip:             hostIP,
 	}
 	cpuStats, err := cpu.Percent(1*time.Second, false)
 
@@ -143,6 +152,30 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 	}
 
 	return agent, nil
+}
+
+func getHostIP() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", nil
+	}
+
+	for _, i := range interfaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			return "", nil
+		}
+
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					return ipnet.IP.String(), nil
+				}
+			}
+		}
+	}
+
+	return "127.0.0.1", nil
 }
 
 // Poll collects current values for all metrics.
@@ -475,6 +508,7 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 				"Content-Type":     "application/json",
 				"Content-Encoding": "gzip",
 				"Hash":             sign,
+				"X-Real-IP":        agent.ip,
 			},
 		},
 	)
