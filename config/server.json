@@ -5,5 +5,6 @@
   "restore": false,
   "store_interval": "30s",
   "store_file": "/tmp/metrics",
-  "trusted_subnet": "192.168.31.0/24"
+  "trusted_subnet": "192.168.31.0/24",
+  "grpc_address": "localhost:8080"
 }

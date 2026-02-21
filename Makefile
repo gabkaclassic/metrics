@@ -24,6 +24,15 @@ profile:
 swagger:
 	swag init -d ./cmd/server,./internal/handler,./internal/model,./pkg/error --output ./api
 
+proto:
+	protoc \
+		--proto_path=api/proto \
+		--go_out=internal/proto \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=internal/proto \
+		--go-grpc_opt=paths=source_relative \
+		api/proto/metrics.proto
+
 test:
 	@echo "==> Running tests with coverage..."
 	@go clean -testcache
