@@ -13,6 +13,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+const (
+	ctxSoureIPKey string = "sourceIP"
+	ctxTSKey      string = "ts"
+)
+
 // auditUnaryInterceptor adds audit context information into request context.
 //
 // Behaviour:
@@ -46,8 +51,8 @@ func auditUnaryInterceptor() grpc.UnaryServerInterceptor {
 			}
 		}
 
-		ctx = context.WithValue(ctx, "sourceIP", ip)
-		ctx = context.WithValue(ctx, "ts", time.Now().Unix())
+		ctx = context.WithValue(ctx, ctxSoureIPKey, ip)
+		ctx = context.WithValue(ctx, ctxTSKey, time.Now().Unix())
 
 		return handler(ctx, req)
 	}

@@ -50,6 +50,9 @@ const (
 
 	// Supported compression types.
 	GZIP CompressType = "gzip"
+
+	ctxSoureIPKey string = "sourceIP"
+	ctxTSKey      string = "ts"
 )
 
 var compressors = map[CompressType]func(http.ResponseWriter) (*compress.CompressWriter, error){
@@ -365,8 +368,8 @@ func AuditContext(next http.Handler) http.Handler {
 			ip = strings.TrimSpace(strings.Split(xff, ",")[0])
 		}
 
-		ctx := context.WithValue(r.Context(), "sourceIP", ip)
-		ctx = context.WithValue(ctx, "ts", time.Now().Unix())
+		ctx := context.WithValue(r.Context(), ctxSoureIPKey, ip)
+		ctx = context.WithValue(ctx, ctxTSKey, time.Now().Unix())
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -376,7 +379,7 @@ func AuditContext(next http.Handler) http.Handler {
 //
 // Returns empty string if the value is not present.
 func AuditIPFromCtx(ctx context.Context) string {
-	if v, ok := ctx.Value("sourceIP").(string); ok {
+	if v, ok := ctx.Value(ctxSoureIPKey).(string); ok {
 		return v
 	}
 	return ""
@@ -386,7 +389,7 @@ func AuditIPFromCtx(ctx context.Context) string {
 //
 // Returns zero if the value is not present.
 func AuditTSFromCtx(ctx context.Context) int64 {
-	if v, ok := ctx.Value("ts").(int64); ok {
+	if v, ok := ctx.Value(ctxTSKey).(int64); ok {
 		return v
 	}
 	return 0
