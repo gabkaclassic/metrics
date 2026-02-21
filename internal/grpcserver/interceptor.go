@@ -13,9 +13,11 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type CtxKey string
+
 const (
-	ctxSoureIPKey string = "sourceIP"
-	ctxTSKey      string = "ts"
+	ctxSoureIPKey CtxKey = "sourceIP"
+	ctxTSKey      CtxKey = "ts"
 )
 
 // auditUnaryInterceptor adds audit context information into request context.

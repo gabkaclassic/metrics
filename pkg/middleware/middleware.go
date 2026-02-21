@@ -39,6 +39,8 @@ type (
 
 	// CompressType represents a supported HTTP compression algorithm.
 	CompressType string
+
+	CtxKey string
 )
 
 const (
@@ -51,8 +53,8 @@ const (
 	// Supported compression types.
 	GZIP CompressType = "gzip"
 
-	ctxSoureIPKey string = "sourceIP"
-	ctxTSKey      string = "ts"
+	ctxSoureIPKey CtxKey = "sourceIP"
+	ctxTSKey      CtxKey = "ts"
 )
 
 var compressors = map[CompressType]func(http.ResponseWriter) (*compress.CompressWriter, error){
