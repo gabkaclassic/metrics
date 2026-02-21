@@ -14,6 +14,8 @@ import (
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/logger"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var (
@@ -54,14 +56,27 @@ func run() error {
 
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
-	client := httpclient.NewClient(
-		httpclient.BaseURL(cfg.Client.BaseURL),
-		httpclient.Timeout(cfg.Client.Timeout),
-		httpclient.MaxRetries(cfg.Client.Retries),
-	)
+	var client *httpclient.Client = nil
+	if len(cfg.Client.BaseURL) > 0 {
+		client = httpclient.NewClient(
+			httpclient.BaseURL(cfg.Client.BaseURL),
+			httpclient.Timeout(cfg.Client.Timeout),
+			httpclient.MaxRetries(cfg.Client.Retries),
+		)
+	}
+
+	var grpcConnection *grpc.ClientConn = nil
+	if len(cfg.GRPCAddress) > 0 {
+		grpcConnection, err = grpc.NewClient(cfg.GRPCAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		if err != nil {
+			slog.Info("GRPC connection error", "error", err)
+			grpcConnection = nil
+		}
+		defer grpcConnection.Close()
+	}
 
 	agent, err := agent.NewAgent(
-		client, cfg.BatchesEnabled, cfg.SignKey, cfg.PublicKeyPath, cfg.RateLimit, cfg.BatchSize,
+		client, grpcConnection, cfg.BatchesEnabled, cfg.SignKey, cfg.PublicKeyPath, cfg.RateLimit, cfg.BatchSize,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize agent: %w", err)

@@ -470,8 +470,8 @@ func TestAuditContext(t *testing.T) {
 			var gotTS int64
 
 			next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				gotIP, _ = r.Context().Value(ctxIPKey).(string)
-				gotTS, _ = r.Context().Value(ctxTSKey).(int64)
+				gotIP, _ = r.Context().Value("sourceIP").(string)
+				gotTS, _ = r.Context().Value("ts").(int64)
 				w.WriteHeader(http.StatusOK)
 			})
 
@@ -505,12 +505,12 @@ func TestAuditIPFromCtx(t *testing.T) {
 	}{
 		{
 			name:     "ctx with valid IP string",
-			ctx:      context.WithValue(context.Background(), ctxIPKey, "192.168.1.1"),
+			ctx:      context.WithValue(context.Background(), "sourceIP", "192.168.1.1"),
 			expected: "192.168.1.1",
 		},
 		{
 			name:     "ctx with wrong value type",
-			ctx:      context.WithValue(context.Background(), ctxIPKey, 123),
+			ctx:      context.WithValue(context.Background(), "sourceIP", 123),
 			expected: "",
 		},
 		{
@@ -520,12 +520,12 @@ func TestAuditIPFromCtx(t *testing.T) {
 		},
 		{
 			name:     "ctx with nil value",
-			ctx:      context.WithValue(context.Background(), ctxIPKey, nil),
+			ctx:      context.WithValue(context.Background(), "sourceIP", nil),
 			expected: "",
 		},
 		{
 			name:     "ctx with empty string",
-			ctx:      context.WithValue(context.Background(), ctxIPKey, ""),
+			ctx:      context.WithValue(context.Background(), "sourceIP", ""),
 			expected: "",
 		},
 	}
@@ -546,12 +546,12 @@ func TestAuditTSFromCtx(t *testing.T) {
 	}{
 		{
 			name:     "ctx with valid timestamp",
-			ctx:      context.WithValue(context.Background(), ctxTSKey, int64(1672531200)),
+			ctx:      context.WithValue(context.Background(), "ts", int64(1672531200)),
 			expected: 1672531200,
 		},
 		{
 			name:     "ctx with wrong value type",
-			ctx:      context.WithValue(context.Background(), ctxTSKey, "not-a-timestamp"),
+			ctx:      context.WithValue(context.Background(), "ts", "not-a-timestamp"),
 			expected: 0,
 		},
 		{
@@ -561,12 +561,12 @@ func TestAuditTSFromCtx(t *testing.T) {
 		},
 		{
 			name:     "ctx with nil value",
-			ctx:      context.WithValue(context.Background(), ctxTSKey, nil),
+			ctx:      context.WithValue(context.Background(), "ts", nil),
 			expected: 0,
 		},
 		{
 			name:     "ctx with zero value",
-			ctx:      context.WithValue(context.Background(), ctxTSKey, int64(0)),
+			ctx:      context.WithValue(context.Background(), "ts", int64(0)),
 			expected: 0,
 		},
 	}
