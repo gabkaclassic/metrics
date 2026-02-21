@@ -26,19 +26,22 @@ const (
 type Metric_MType int32
 
 const (
-	Metric_GAUGE   Metric_MType = 0
-	Metric_COUNTER Metric_MType = 1
+	Metric_UNKNOWN Metric_MType = 0
+	Metric_GAUGE   Metric_MType = 1
+	Metric_COUNTER Metric_MType = 2
 )
 
 // Enum value maps for Metric_MType.
 var (
 	Metric_MType_name = map[int32]string{
-		0: "GAUGE",
-		1: "COUNTER",
+		0: "UNKNOWN",
+		1: "GAUGE",
+		2: "COUNTER",
 	}
 	Metric_MType_value = map[string]int32{
-		"GAUGE":   0,
-		"COUNTER": 1,
+		"UNKNOWN": 0,
+		"GAUGE":   1,
+		"COUNTER": 2,
 	}
 )
 
@@ -123,7 +126,7 @@ func (x *Metric) GetType() Metric_MType {
 	if x != nil {
 		return x.Type
 	}
-	return Metric_GAUGE
+	return Metric_UNKNOWN
 }
 
 func (x *Metric) GetDelta() int64 {
@@ -226,15 +229,16 @@ var File_metrics_proto protoreflect.FileDescriptor
 
 const file_metrics_proto_rawDesc = "" +
 	"\n" +
-	"\rmetrics.proto\x12\ametrics\"\x90\x01\n" +
+	"\rmetrics.proto\x12\ametrics\"\x9d\x01\n" +
 	"\x06Metric\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12)\n" +
 	"\x04type\x18\x02 \x01(\x0e2\x15.metrics.Metric.MTypeR\x04type\x12\x14\n" +
 	"\x05delta\x18\x03 \x01(\x03R\x05delta\x12\x14\n" +
-	"\x05value\x18\x04 \x01(\x01R\x05value\"\x1f\n" +
-	"\x05MType\x12\t\n" +
-	"\x05GAUGE\x10\x00\x12\v\n" +
-	"\aCOUNTER\x10\x01\"A\n" +
+	"\x05value\x18\x04 \x01(\x01R\x05value\",\n" +
+	"\x05MType\x12\v\n" +
+	"\aUNKNOWN\x10\x00\x12\t\n" +
+	"\x05GAUGE\x10\x01\x12\v\n" +
+	"\aCOUNTER\x10\x02\"A\n" +
 	"\x14UpdateMetricsRequest\x12)\n" +
 	"\ametrics\x18\x01 \x03(\v2\x0f.metrics.MetricR\ametrics\"\x17\n" +
 	"\x15UpdateMetricsResponse2Y\n" +

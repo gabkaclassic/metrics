@@ -15,7 +15,6 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
 
@@ -52,12 +51,6 @@ func NewMetricsGRPCServer(svc service.MetricsService) *MetricsGRPCServer {
 func (s *MetricsGRPCServer) UpdateMetrics(ctx context.Context, req *pb.UpdateMetricsRequest) (*pb.UpdateMetricsResponse, error) {
 	if req == nil || len(req.Metrics) == 0 {
 		return &pb.UpdateMetricsResponse{}, nil
-	}
-
-	if md, ok := metadata.FromIncomingContext(ctx); ok {
-		if vals := md.Get("x-real-ip"); len(vals) > 0 {
-			ctx = context.WithValue(ctx, "x-real-ip", vals[0])
-		}
 	}
 
 	metrics := make([]models.Metrics, 0, len(req.Metrics))
