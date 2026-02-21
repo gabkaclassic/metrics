@@ -21,15 +21,28 @@ import (
 )
 
 func TestNewAgent(t *testing.T) {
-	dummyClient := httpclient.NewMockHTTPClient(t)
+	dummyClient := &httpclient.Client{}
 
-	agent, err := NewAgent(dummyClient, true, "secret", "", 10, 100)
+	agent, err := NewAgent(
+		dummyClient,
+		nil,
+		true,
+		"secret",
+		"",
+		10,
+		100,
+	)
+
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
+
 	assert.Equal(t, dummyClient, agent.client)
+	assert.Nil(t, agent.grpcClient)
+
 	assert.NotNil(t, agent.stats)
 	assert.NotNil(t, agent.metrics)
 	assert.NotNil(t, agent.signer)
+
 	assert.True(t, agent.batchesEnabled)
 	assert.Equal(t, 10, agent.rateLimit)
 
@@ -37,6 +50,7 @@ func TestNewAgent(t *testing.T) {
 
 	foundPollCount := false
 	foundRandomValue := false
+
 	for _, m := range agent.metrics {
 		switch m.(type) {
 		case *metric.PollCount:
@@ -45,9 +59,9 @@ func TestNewAgent(t *testing.T) {
 			foundRandomValue = true
 		}
 	}
+
 	assert.True(t, foundPollCount)
 	assert.True(t, foundRandomValue)
-
 	assert.NotNil(t, agent.cpuStats)
 	assert.NotNil(t, agent.psMemStats)
 }
