@@ -38,8 +38,8 @@ func TestAuditUnaryInterceptor(t *testing.T) {
 			var capturedTS int64
 
 			handler := func(ctx context.Context, req any) (any, error) {
-				ip, _ := ctx.Value("sourceIP").(string)
-				ts, _ := ctx.Value("ts").(int64)
+				ip, _ := ctx.Value(ctxSoureIPKey).(string)
+				ts, _ := ctx.Value(ctxTSKey).(int64)
 
 				capturedIP = ip
 				capturedTS = ts
