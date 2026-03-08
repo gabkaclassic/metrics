@@ -14,6 +14,7 @@ import (
 	"github.com/gabkaclassic/metrics/internal/audit"
 	"github.com/gabkaclassic/metrics/internal/config"
 	"github.com/gabkaclassic/metrics/internal/dump"
+	"github.com/gabkaclassic/metrics/internal/grpcserver"
 	"github.com/gabkaclassic/metrics/internal/handler"
 	"github.com/gabkaclassic/metrics/internal/repository"
 	"github.com/gabkaclassic/metrics/internal/service"
@@ -66,6 +67,10 @@ func run() error {
 	}
 	logger.SetupLogger(logger.LogConfig(cfg.Log))
 
+	if len(cfg.Address) == 0 && len(cfg.GRPCAddress) == 0 {
+		return fmt.Errorf("one of HTTP address or GRPC address must be set")
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
 	defer stop()
 
@@ -108,12 +113,17 @@ func run() error {
 	}
 
 	auditor, err := audit.NewAudior(cfg.Audit)
-
 	if err != nil {
 		return fmt.Errorf("failed to create auditor: %w", err)
 	}
 
-	router, err := setupRouter(&metricsRepository, cfg.SignKey, cfg.PrivateKeyPath, auditor)
+	metricsService, err := service.NewMetricsService(metricsRepository, auditor)
+
+	if err != nil {
+		return fmt.Errorf("failed to create metrics service: %w", err)
+	}
+
+	router, err := setupRouter(metricsService, cfg.SignKey, cfg.PrivateKeyPath, cfg.TrustedCIDR, auditor)
 	if err != nil {
 		return fmt.Errorf("failed to setup HTTP router: %w", err)
 	}
@@ -130,6 +140,18 @@ func run() error {
 
 	go server.Run(ctx, stop)
 
+	grpcServer, err := grpcserver.SetupGRPCServer(metricsService, cfg.TrustedCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to setup gRPC server: %w", err)
+	}
+
+	if dumperEnabled {
+		go dumper.StartDumper(ctx, cfg.Dump)
+		slog.Info("Dumper started")
+	}
+
+	go grpcServer.Run(ctx, cfg.GRPCAddress)
+
 	<-ctx.Done()
 	slog.Info("Shutdown complete")
 
@@ -142,15 +164,9 @@ func readDump(cfg config.Dump, dumper *dump.Dumper) {
 	}
 }
 
-func setupRouter(metricsRepository *repository.MetricsRepository, signKey string, privateKeyPath string, auditor audit.Auditor) (http.Handler, error) {
+func setupRouter(metricsService service.MetricsService, signKey string, privateKeyPath string, tructedCIDR string, auditor audit.Auditor) (http.Handler, error) {
 
 	// Metrics
-	metricsService, err := service.NewMetricsService(*metricsRepository, auditor)
-
-	if err != nil {
-		return nil, err
-	}
-
 	metricsHandler, err := handler.NewMetricsHandler(metricsService)
 
 	if err != nil {
@@ -161,5 +177,6 @@ func setupRouter(metricsRepository *repository.MetricsRepository, signKey string
 		MetricsHandler: metricsHandler,
 		SignKey:        signKey,
 		PrivateKeyPath: privateKeyPath,
+		TrustedCIDR:    tructedCIDR,
 	})
 }

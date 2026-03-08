@@ -31,12 +31,14 @@ type (
 	// Server represents the full configuration of the metrics server.
 	Server struct {
 		Address        string `env:"ADDRESS" envDefault:"localhost:8080"`
+		GRPCAddress    string `env:"GRPC_ADDRESS"`
 		SignKey        string `env:"KEY"`
 		Log            Log
 		Dump           Dump
 		DB             DB
 		Audit          Audit
 		PrivateKeyPath string `env:"CRYPTO_KEY"`
+		TrustedCIDR    string `env:"TRUSTED_SUBNET"`
 	}
 	// Agent represents the configuration of the metrics agent.
 	Agent struct {
@@ -49,6 +51,7 @@ type (
 		RateLimit      int    `env:"RATE_LIMIT" envDefault:"5"`
 		BatchSize      int    `env:"BATCH_SIZE" envDefault:"100"`
 		PublicKeyPath  string `env:"CRYPTO_KEY"`
+		GRPCAddress    string `env:"GRPC_ADDRESS"`
 	}
 	// DB contains database-related configuration.
 	DB struct {
@@ -99,6 +102,8 @@ type (
 		StoreFile     string `json:"store_file"`
 		DatabaseDSN   string `json:"database_dsn"`
 		CryptoKeyPath string `json:"crypto_key"`
+		TrustedCIDR   string `json:"trusted_subnet"`
+		GRPCAddress   string `json:"grpc_address"`
 	}
 
 	// agentFileConfig represents JSON-based configuration for the metrics agent.
@@ -114,12 +119,18 @@ type (
 		ReportInterval string `json:"report_interval"`
 		PollInterval   string `json:"poll_interval"`
 		CryptoKeyPath  string `json:"crypto_key"`
+		GRPCAddress    string `json:"grpc_address"`
 	}
 )
 
 // ensureURL normalizes an address string into a valid URL.
 // If the scheme is missing, "http://" is prepended.
 func ensureURL(addr string) string {
+
+	if len(addr) == 0 {
+		return addr
+	}
+
 	if !strings.Contains(addr, "://") {
 		addr = "http://" + addr
 	}
@@ -256,6 +267,14 @@ func applyServerFileConfig(cfg *Server, fc *serverFileConfig) error {
 		cfg.PrivateKeyPath = fc.CryptoKeyPath
 	}
 
+	if fc.TrustedCIDR != "" {
+		cfg.TrustedCIDR = fc.TrustedCIDR
+	}
+
+	if fc.GRPCAddress != "" {
+		cfg.GRPCAddress = fc.GRPCAddress
+	}
+
 	return nil
 }
 
@@ -293,6 +312,10 @@ func applyAgentFileConfig(cfg *Agent, fc *agentFileConfig) error {
 
 	if fc.CryptoKeyPath != "" {
 		cfg.PublicKeyPath = fc.CryptoKeyPath
+	}
+
+	if fc.GRPCAddress != "" {
+		cfg.GRPCAddress = fc.GRPCAddress
 	}
 
 	return nil
@@ -335,6 +358,7 @@ func ParseServerConfig() (*Server, error) {
 	flag.String("config", "", "Path to file with config")
 
 	address := flag.String("a", cfg.Address, "HTTP server address")
+	grpcAddress := flag.String("grpc", cfg.GRPCAddress, "GRPC server address")
 
 	logLevel := flag.String("log-level", cfg.Log.Level, "Logging level")
 	logFile := flag.String("log-file", cfg.Log.File, "Log file path")
@@ -357,12 +381,16 @@ func ParseServerConfig() (*Server, error) {
 	signKey := flag.String("k", cfg.SignKey, "Key to verify requests bodies")
 	privateKeyPath := flag.String("crypto-key", cfg.PrivateKeyPath, "Path to private key to decrypt requests")
 
+	trustedCIDR := flag.String("t", cfg.TrustedCIDR, "Trusted subnet for agents")
+
 	flag.Parse()
 
 	flag.Visit(func(f *flag.Flag) {
 		switch f.Name {
 		case "a":
 			cfg.Address = *address
+		case "grpc":
+			cfg.GRPCAddress = *grpcAddress
 
 		case "i":
 			cfg.Dump.StoreInterval = time.Duration(*storeInterval) * time.Second
@@ -400,6 +428,9 @@ func ParseServerConfig() (*Server, error) {
 			cfg.PrivateKeyPath = *privateKeyPath
 		case "k":
 			cfg.SignKey = *signKey
+
+		case "t":
+			cfg.TrustedCIDR = *trustedCIDR
 		}
 	})
 
@@ -439,6 +470,7 @@ func ParseAgentConfig() (*Agent, error) {
 
 	flag.String("c", "", "Path to file with config")
 	flag.String("config", "", "Path to file with config")
+	grpcAddress := flag.String("grpc", cfg.GRPCAddress, "GRPC server address")
 
 	pollInterval := flag.Uint("p", uint(cfg.PollInterval.Seconds()), "Metrics polling interval (seconds)")
 	reportInterval := flag.Uint("r", uint(cfg.ReportInterval.Seconds()), "Metrics reporting interval (seconds)")
@@ -469,7 +501,8 @@ func ParseAgentConfig() (*Agent, error) {
 			cfg.BatchesEnabled = *batchesEnabled
 		case "batch-size":
 			cfg.BatchSize = *batchSize
-
+		case "grpc":
+			cfg.GRPCAddress = *grpcAddress
 		case "a":
 			cfg.Client.BaseURL = *serverAddress
 		case "report-retries":

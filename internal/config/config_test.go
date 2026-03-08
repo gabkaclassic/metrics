@@ -203,7 +203,7 @@ func TestEnsureURL(t *testing.T) {
 		{
 			name:     "empty string",
 			input:    "",
-			expected: "http:",
+			expected: "",
 		},
 	}
 

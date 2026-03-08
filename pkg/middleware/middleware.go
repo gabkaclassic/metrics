@@ -15,6 +15,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -38,6 +39,8 @@ type (
 
 	// CompressType represents a supported HTTP compression algorithm.
 	CompressType string
+
+	CtxKey string
 )
 
 const (
@@ -50,9 +53,8 @@ const (
 	// Supported compression types.
 	GZIP CompressType = "gzip"
 
-	// Context keys used for audit metadata.
-	ctxIPKey ContextKey = "sourceIP"
-	ctxTSKey ContextKey = "ts"
+	ctxSoureIPKey CtxKey = "sourceIP"
+	ctxTSKey      CtxKey = "ts"
 )
 
 var compressors = map[CompressType]func(http.ResponseWriter) (*compress.CompressWriter, error){
@@ -254,6 +256,57 @@ func RequireContentType(ct ContentType) middleware {
 	}
 }
 
+// TrustAddress returns a middleware that restricts access by client IP address.
+//
+// The middleware extracts client IP from the "X-Real-IP" header and checks
+// whether it belongs to the provided CIDR range.
+//
+// If CIDR is empty, the middleware allows all requests.
+// If CIDR parsing fails, an error is returned.
+//
+// Requests with missing, invalid, or non-matching IP are rejected with 403 status.
+
+func TrustAddress(CIDR string) (middleware, error) {
+
+	if len(CIDR) == 0 {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				next.ServeHTTP(w, r)
+			})
+		}, nil
+
+	}
+
+	_, trustedCIDR, err := net.ParseCIDR(CIDR)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			rawIP := r.Header.Get("X-Real-IP")
+
+			ip := net.ParseIP(rawIP)
+
+			if ip == nil || !trustedCIDR.Contains(ip) {
+
+				requestID := r.Header.Get("X-Request-ID")
+
+				slog.Info("Forbidden by untrusted IP",
+					slog.String("id", requestID),
+					slog.Any("IP", ip),
+				)
+				err := api.Forbidden("")
+				api.RespondError(w, err)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}, nil
+}
+
 // Logger logs incoming HTTP requests and their processing time.
 //
 // The middleware logs:
@@ -317,7 +370,7 @@ func AuditContext(next http.Handler) http.Handler {
 			ip = strings.TrimSpace(strings.Split(xff, ",")[0])
 		}
 
-		ctx := context.WithValue(r.Context(), ctxIPKey, ip)
+		ctx := context.WithValue(r.Context(), ctxSoureIPKey, ip)
 		ctx = context.WithValue(ctx, ctxTSKey, time.Now().Unix())
 
 		next.ServeHTTP(w, r.WithContext(ctx))
@@ -328,7 +381,7 @@ func AuditContext(next http.Handler) http.Handler {
 //
 // Returns empty string if the value is not present.
 func AuditIPFromCtx(ctx context.Context) string {
-	if v, ok := ctx.Value(ctxIPKey).(string); ok {
+	if v, ok := ctx.Value(ctxSoureIPKey).(string); ok {
 		return v
 	}
 	return ""

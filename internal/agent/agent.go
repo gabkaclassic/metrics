@@ -15,8 +15,10 @@ package agent
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"runtime"
 	"sync"
@@ -28,12 +30,15 @@ import (
 	"compress/gzip"
 
 	models "github.com/gabkaclassic/metrics/internal/model"
+	pb "github.com/gabkaclassic/metrics/internal/proto"
 	"github.com/gabkaclassic/metrics/pkg/crypt"
 	"github.com/gabkaclassic/metrics/pkg/hash"
 	"github.com/gabkaclassic/metrics/pkg/httpclient"
 	"github.com/gabkaclassic/metrics/pkg/metric"
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/mem"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 // Agent defines the interface for metrics collection agents.
@@ -56,6 +61,7 @@ type MetricsAgent struct {
 	psMemStats     *mem.VirtualMemoryStat
 	cpuStats       *[]float64
 	mu             *sync.RWMutex
+	grpcClient     pb.MetricsClient
 	client         httpclient.HTTPClient
 	metrics        []metric.Metric
 	batchesEnabled bool
@@ -65,11 +71,13 @@ type MetricsAgent struct {
 	wg             sync.WaitGroup
 	batchSize      int
 	encryptor      crypt.Encryptor
+	ip             string
 }
 
 // NewAgent creates and initializes a new metrics collection agent.
 //
 // client: HTTP client configured with server endpoint.
+// grpcClient: optional gRPC client for sending metrics (nil to keep HTTP).
 // batchesEnabled: Enables batch reporting when true.
 // signKey: Secret key for request signature generation.
 // rateLimit: Maximum concurrent HTTP requests (0 for no limit).
@@ -78,43 +86,52 @@ type MetricsAgent struct {
 // Returns:
 //   - *MetricsAgent: Fully initialized agent ready for polling
 //   - error: If system metric collection fails during initialization
-//
-// The agent initializes with:
-//   - Default metrics (PollCount, RandomValue)
-//   - Go runtime metrics
-//   - System metrics (CPU, memory)
-//   - Request signer for secure communication
-//   - Request encryptor for requests
-func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string, publicKeyPath string, rateLimit int, batchSize int) (*MetricsAgent, error) {
-	metrics := []metric.Metric{
-		// Counters
-		&metric.PollCount{},
+func NewAgent(client *httpclient.Client, grpcConnection *grpc.ClientConn, batchesEnabled bool, signKey string, publicKeyPath string, rateLimit int, batchSize int) (*MetricsAgent, error) {
 
-		// Gauges
+	if (client == nil && grpcConnection == nil) || (client != nil && grpcConnection != nil) {
+		return nil, errors.New("one of GRPC or HTTP client is required")
+	}
+
+	var grpcClient pb.MetricsClient = nil
+
+	if client != nil {
+		slog.Info("using HTTP client")
+	} else {
+		slog.Info("using GRPC client")
+		grpcClient = pb.NewMetricsClient(grpcConnection)
+	}
+
+	metrics := []metric.Metric{
+		&metric.PollCount{},
 		&metric.RandomValue{},
 	}
 
-	// Gauges runtime
 	stats := &runtime.MemStats{}
 	metrics = append(metrics, metric.RuntimeMetrics(stats)...)
 
+	hostIP, err := getHostIP()
+	if err != nil {
+		return nil, err
+	}
+
 	agent := &MetricsAgent{
 		client:         client,
+		grpcClient:     grpcClient,
 		stats:          stats,
 		mu:             &sync.RWMutex{},
 		batchesEnabled: batchesEnabled,
 		rateLimit:      rateLimit,
 		jobCh:          make(chan []metric.Metric, 1),
 		batchSize:      batchSize,
+		ip:             hostIP,
 	}
-	cpuStats, err := cpu.Percent(1*time.Second, false)
 
+	cpuStats, err := cpu.Percent(1*time.Second, false)
 	if err != nil {
 		return nil, err
 	}
 
 	psMemStats, err := mem.VirtualMemory()
-
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +151,6 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 
 	if len(publicKeyPath) > 0 {
 		agent.encryptor, err = crypt.NewX509Encryptor(publicKeyPath)
-
 		if err != nil {
 			return nil, err
 		}
@@ -143,6 +159,30 @@ func NewAgent(client httpclient.HTTPClient, batchesEnabled bool, signKey string,
 	}
 
 	return agent, nil
+}
+
+func getHostIP() (string, error) {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return "", nil
+	}
+
+	for _, i := range interfaces {
+		addrs, err := i.Addrs()
+		if err != nil {
+			return "", nil
+		}
+
+		for _, addr := range addrs {
+			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
+				if ipnet.IP.To4() != nil {
+					return ipnet.IP.String(), nil
+				}
+			}
+		}
+	}
+
+	return "127.0.0.1", nil
 }
 
 // Poll collects current values for all metrics.
@@ -241,6 +281,26 @@ func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
 	return nil
 }
 
+// modelToProto converts models.Metrics to pb.Metric.
+func modelToProto(m models.Metrics) *pb.Metric {
+	pm := &pb.Metric{
+		Id: m.ID,
+	}
+	switch m.MType {
+	case models.Gauge:
+		pm.Type = pb.Metric_GAUGE
+		if m.Value != nil {
+			pm.Value = *m.Value
+		}
+	case models.Counter:
+		pm.Type = pb.Metric_COUNTER
+		if m.Delta != nil {
+			pm.Delta = *m.Delta
+		}
+	}
+	return pm
+}
+
 // reportWorker is a goroutine that processes individual metric reporting jobs.
 // wg: WaitGroup for coordinating worker shutdown.
 // jobs: Channel receiving metrics to report.
@@ -248,13 +308,10 @@ func (agent *MetricsAgent) reportIndividual(metrics []metric.Metric) error {
 // Each worker handles metrics sequentially until jobs channel closes.
 func (agent *MetricsAgent) reportWorker(wg *sync.WaitGroup, jobs <-chan metric.Metric, errCh chan<- error) {
 	defer wg.Done()
-	slog.Debug("Worker start")
-	defer slog.Debug("Worker stop")
 
 	for m := range jobs {
 		metricModel, err := agent.prepareMetric(m)
 		if err != nil {
-			slog.Error("Prepare metric error", slog.Any("metric", m), slog.String("error", err.Error()))
 			select {
 			case errCh <- err:
 			default:
@@ -262,33 +319,44 @@ func (agent *MetricsAgent) reportWorker(wg *sync.WaitGroup, jobs <-chan metric.M
 			return
 		}
 
-		raw, err := json.Marshal(metricModel)
-		if err != nil {
-			slog.Error("Marshal metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-			select {
-			case errCh <- err:
-			default:
+		if agent.grpcClient != nil {
+			pm := modelToProto(*metricModel)
+			ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("x-real-ip", agent.ip))
+			_, err := agent.grpcClient.UpdateMetrics(ctx, &pb.UpdateMetricsRequest{Metrics: []*pb.Metric{pm}})
+			if err != nil {
+				select {
+				case errCh <- fmt.Errorf("grpc send error: %w", err):
+				default:
+				}
+				return
 			}
-			return
-		}
+			continue
+		} else {
+			raw, err := json.Marshal(metricModel)
+			if err != nil {
+				select {
+				case errCh <- err:
+				default:
+				}
+				return
+			}
 
-		buffer, err := agent.compressData(raw)
-		if err != nil {
-			slog.Error("Compress data error", slog.Any("metric", m), slog.String("error", err.Error()))
-			select {
-			case errCh <- err:
-			default:
+			buffer, err := agent.compressData(raw)
+			if err != nil {
+				select {
+				case errCh <- err:
+				default:
+				}
+				return
 			}
-			return
-		}
 
-		if err := agent.sendRequest("/update/", buffer); err != nil {
-			slog.Error("Send metric error", slog.Any("metric", m), slog.String("error", err.Error()))
-			select {
-			case errCh <- err:
-			default:
+			if err := agent.sendRequest("/update/", buffer); err != nil {
+				select {
+				case errCh <- err:
+				default:
+				}
+				return
 			}
-			return
 		}
 	}
 }
@@ -346,9 +414,7 @@ func chunkMetrics(metrics []metric.Metric, size int) [][]metric.Metric {
 	return chunks
 }
 
-// reportBatch sends a single batch of metrics in one HTTP request.
-// metrics: Metrics to include in this batch.
-// Returns error if any step fails (preparation, marshaling, sending).
+// reportBatch sends a single batch of metrics in one HTTP or gRPC request.
 func (agent *MetricsAgent) reportBatch(metrics []metric.Metric) error {
 	var metricModels []models.Metrics
 	for _, m := range metrics {
@@ -359,21 +425,30 @@ func (agent *MetricsAgent) reportBatch(metrics []metric.Metric) error {
 		metricModels = append(metricModels, *metricModel)
 	}
 
-	raw, err := json.Marshal(metricModels)
-	if err != nil {
-		return fmt.Errorf("marshal metrics batch error: %w", err)
-	}
+	if agent.grpcClient != nil {
+		var pmetrics []*pb.Metric
+		for _, mm := range metricModels {
+			pmetrics = append(pmetrics, modelToProto(mm))
+		}
+		ctx := metadata.NewOutgoingContext(context.Background(), metadata.Pairs("x-real-ip", agent.ip))
+		if _, err := agent.grpcClient.UpdateMetrics(ctx, &pb.UpdateMetricsRequest{Metrics: pmetrics}); err != nil {
+			return fmt.Errorf("grpc send batch error: %w", err)
+		}
+	} else {
+		raw, err := json.Marshal(metricModels)
+		if err != nil {
+			return fmt.Errorf("marshal metrics batch error: %w", err)
+		}
 
-	buffer, err := agent.compressData(raw)
-	if err != nil {
-		return fmt.Errorf("compress batch data error: %w", err)
-	}
+		buffer, err := agent.compressData(raw)
+		if err != nil {
+			return fmt.Errorf("compress batch data error: %w", err)
+		}
 
-	if err := agent.sendRequest("/updates/", buffer); err != nil {
-		return fmt.Errorf("send metrics batch error: %w", err)
+		if err := agent.sendRequest("/updates/", buffer); err != nil {
+			return fmt.Errorf("send metrics batch error: %w", err)
+		}
 	}
-
-	slog.Info("Metrics batch sent successfully", slog.Int("count", len(metrics)))
 	return nil
 }
 
@@ -475,6 +550,7 @@ func (agent *MetricsAgent) sendRequest(endpoint string, body *bytes.Buffer) erro
 				"Content-Type":     "application/json",
 				"Content-Encoding": "gzip",
 				"Hash":             sign,
+				"X-Real-IP":        agent.ip,
 			},
 		},
 	)

@@ -24,10 +24,19 @@ profile:
 swagger:
 	swag init -d ./cmd/server,./internal/handler,./internal/model,./pkg/error --output ./api
 
+proto:
+	protoc \
+		--proto_path=api/proto \
+		--go_out=internal/proto \
+		--go_opt=paths=source_relative \
+		--go-grpc_out=internal/proto \
+		--go-grpc_opt=paths=source_relative \
+		api/proto/metrics.proto
+
 test:
 	@echo "==> Running tests with coverage..."
 	@go clean -testcache
 	@go test ./... -coverprofile=$(COVERAGE_FILE)
-	@grep -v -E '(mocks\.gen\.go)|(pkg/metric/*)|(main\.go)|(doc\.go)|(reset\.gen\.go)' $(COVERAGE_FILE) > $(COVERAGE_FILTERED)
+	@grep -v -E '(mocks\.gen\.go)|(pkg/metric/*)|(main\.go)|(doc\.go)|(reset\.gen\.go)|(*\.pb\.go)' $(COVERAGE_FILE) > $(COVERAGE_FILTERED)
 	@go tool cover -func=$(COVERAGE_FILTERED)
 	@rm $(COVERAGE_FILTERED)
